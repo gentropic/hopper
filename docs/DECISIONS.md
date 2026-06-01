@@ -405,7 +405,7 @@ When these are promoted from this doc into the normative specs:
 | Decision | Lands in |
 |---|---|
 | §1 durability mechanism; §8 two-lane state; storage readout | **SPEC-hopper-collector** §4–5 |
-| §2 git-shaped G-Set; §3 git-compatible-not-dependent; §4 per-author layout; §9 tombstones | **SPEC-hopper-collector** §5 (sync) + a new records/object-model section |
+| §2 git-shaped G-Set; §3 git-compatible-not-dependent; §4 per-author layout; §9 tombstones | **SPEC-hopper-records.md** (drafted ✓ — the object model) + folds into **SPEC-hopper-collector** §4–5 |
 | §5 private-by-default principle | **SPEC-hopper** §1 (new commitment) + collector §6 (deploy) |
 | §6 total-expression rule language; `soft`→mill | **SPEC-hopper-rules.md** (drafted ✓ — folds into **SPEC-hopper-form** §6); closes SPEC-hopper §7 "rule-expression runtime" |
 | §7 surfaces-not-apps; collector lean / mill sibling | **SPEC-hopper** §3 (component map) + collector §2 |
