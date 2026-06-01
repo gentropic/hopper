@@ -15,6 +15,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SIB = resolve(ROOT, '..');               // ../  (sibling GitHub checkouts)
 
 // [ source (absolute under ../), dest (under vendor/) ]
+// NOTE: noble-ed25519.js is NOT here — it's an npm package, not a sibling repo.
+// It's vendored as a pinned, reviewed step (see vendor/PROVENANCE.md):
+//   npm pack @noble/ed25519@<ver> → copy package/index.js → vendor/noble-ed25519.js
 const MAP = [
   [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],
   // [resolve(SIB, 'auditable/ext/sideact/...'), 'sideact.js'],  // TODO: confirm bundle entry

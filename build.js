@@ -45,24 +45,54 @@ function stripModuleSyntax(src) {
   return src.replace(/^\n+/, '').replace(/\n+$/, '');
 }
 
+// Wrap a vendored ESM module in an IIFE that keeps its own scope and exposes a
+// single namespace const. Used for `import * as ns from '../vendor/…'` so a
+// third-party lib (noble, …) bundles into the one file without leaking or
+// colliding its internal names with first-party globals.
+function wrapNamespace(name, src) {
+  const names = [];
+  src = src.replace(/^export\s*\{([^}]*)\}\s*;?[ \t]*$/gm, (_full, list) => {     // trailing `export { … }`
+    for (const part of list.split(',')) {
+      const s = part.trim(); if (!s) continue;
+      const as = s.split(/\s+as\s+/);
+      names.push(as.length > 1 ? { local: as[0].trim(), exported: as[1].trim() } : { local: s, exported: s });
+    }
+    return '';
+  });
+  src = src.replace(/^export\s+(const|let|var|function|async function|class)\s+([A-Za-z_$][\w$]*)/gm, (_f, kw, id) => {
+    if (!names.some((n) => n.exported === id)) names.push({ local: id, exported: id });
+    return `${kw} ${id}`;
+  });
+  src = src.replace(/^export\s+default\s+/gm, 'const __default__ = ');
+  src = src.replace(/^import\b[\s\S]*?from\s+['"][^'"]*['"];?[ \t]*$/gm, '');       // self-contained vendored libs
+  src = src.replace(/^import\s+['"][^'"]*['"];?[ \t]*$/gm, '');
+  const ret = names.map((n) => (n.local === n.exported ? n.exported : `${n.exported}: ${n.local}`)).join(', ');
+  return `const ${name} = (function () {\n${src.trim()}\nreturn { ${ret} };\n})();`;
+}
+
 // Read the manifest, follow its relative imports in declared order, inline each
 // once. The manifest is imports-only by convention (no body runs from it).
+// `import * as ns from …` → namespace-wrapped; everything else → flat-inlined.
 function inlineModules(manifestPath) {
   const manifestDir = dirname(manifestPath);
-  const importPaths = [];
+  const items = [];
   for (const raw of readFileSync(manifestPath, 'utf8').split('\n')) {
-    const m = raw.replace(/\r$/, '').match(/^import\s+.*['"](\.\.?\/.+?)['"];?\s*(?:\/\/.*)?$/);
-    if (m) importPaths.push(m[1]);
+    const line = raw.replace(/\r$/, '');
+    const ns = line.match(/^import\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s+['"](\.\.?\/.+?)['"]/);
+    if (ns) { items.push({ rel: ns[2], ns: ns[1] }); continue; }
+    const m = line.match(/^import\s+.*['"](\.\.?\/.+?)['"];?\s*(?:\/\/.*)?$/);
+    if (m) items.push({ rel: m[1], ns: null });
   }
   const chunks = [];
   const seen = new Set();
-  for (const rel of importPaths) {
+  for (const { rel, ns } of items) {
     const file = resolve(manifestDir, rel);
     if (seen.has(file)) continue;
     seen.add(file);
     if (!existsSync(file)) { console.error(`import not found: ${rel} (from ${relative(ROOT, manifestPath)})`); process.exit(1); }
     const label = relative(ROOT, file).replace(/\\/g, '/');
-    chunks.push(`// ── ${label} ──\n${stripModuleSyntax(readFileSync(file, 'utf8'))}`);
+    const src = readFileSync(file, 'utf8');
+    chunks.push(`// ── ${label}${ns ? ` (namespace: ${ns})` : ''} ──\n${ns ? wrapNamespace(ns, src) : stripModuleSyntax(src)}`);
   }
   return chunks.join('\n\n');
 }
