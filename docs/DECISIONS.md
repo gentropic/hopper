@@ -263,6 +263,19 @@ expression AST → reactive graph (each rule's free variables are its
 dependencies; recompute via **`@gcu/sideact` signals**). Harden and formalize it;
 don't replace it. No `soft`, no AIR in the collector.
 
+**Syntax anchors on XLSForm, not `soft`.** The first draft inherited `soft`'s
+English-keyword aesthetic (`is above`, `equals`) — but `soft`'s no-symbols rule
+exists for soft-keyboard input, which is *not* a Hopper constraint (rules are
+authored by the builder's pickers, by YAML hand-editing, or by models). So the
+canonical syntax is the **tidied XLSForm expression sublanguage**: **symbolic
+comparisons & arithmetic** (`< > <= >= = != + - * /`), **word booleans**
+(`and`/`or`/`not`), and keyword sugar only where no clean symbol exists
+(`between`, `contains`, `is blank`/`filled`, `matches`). This makes the XLSForm
+bridge near-**identity** for the relational/arithmetic operators (less converter
+code), and a builder picker may *display* "is greater than" while serializing
+`>`. The full grammar is **`SPEC-hopper-rules.md`** (the bounded-new-component
+spec; closes the SPEC-hopper §7 "rule-expression runtime" parked decision).
+
 **Where `soft` / AIR *do* belong:** the **mill query layer** (later) — `take
 from <form> keep where … group by … total …` over the append-only union. There
 the English-keyword ergonomics and real compilation earn their keep. Two
@@ -394,7 +407,7 @@ When these are promoted from this doc into the normative specs:
 | §1 durability mechanism; §8 two-lane state; storage readout | **SPEC-hopper-collector** §4–5 |
 | §2 git-shaped G-Set; §3 git-compatible-not-dependent; §4 per-author layout; §9 tombstones | **SPEC-hopper-collector** §5 (sync) + a new records/object-model section |
 | §5 private-by-default principle | **SPEC-hopper** §1 (new commitment) + collector §6 (deploy) |
-| §6 total-expression rule language; `soft`→mill | **SPEC-hopper-form** §6 (rewrite); closes SPEC-hopper §7 "rule-expression runtime" |
+| §6 total-expression rule language; `soft`→mill | **SPEC-hopper-rules.md** (drafted ✓ — folds into **SPEC-hopper-form** §6); closes SPEC-hopper §7 "rule-expression runtime" |
 | §7 surfaces-not-apps; collector lean / mill sibling | **SPEC-hopper** §3 (component map) + collector §2 |
 | §9 seams (time, privacy, flat-forms, served-not-file) | scattered: collector §4/§6, form §12, hopper §5 |
 
