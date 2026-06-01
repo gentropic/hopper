@@ -10,4 +10,5 @@
 //
 // Internal modules, in dependency order:
 import './records/address.js';   // → streamId, contentAddress (pure; SPEC-hopper-records §1/§3)
+import './rules/eval.js';        // → parse, evaluate, evalBool, constraintValid, deps (SPEC-hopper-rules)
 import './boot.js';              // mounts the shell, registers the service worker

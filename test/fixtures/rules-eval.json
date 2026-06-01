@@ -20,8 +20,14 @@
     { "note": "§4.2 — blank evaluates false for relevant/require/show", "verb": "relevant",
       "expr": "resample = \"yes\"", "values": {}, "expected": false },
     { "note": "§4.3 — a constraint passes on an empty answer (emptiness is require's job)", "verb": "constrain",
-      "expr": "fe_pct between 0 and 100", "values": {}, "expectedConstraintValid": true },
+      "target": "fe_pct", "expr": "fe_pct between 0 and 100", "values": {}, "expectedConstraintValid": true },
+    { "note": "§4.3 — a filled answer must satisfy the constraint", "verb": "constrain",
+      "target": "fe_pct", "expr": "fe_pct between 0 and 100", "values": { "fe_pct": 140 }, "expectedConstraintValid": false },
     { "note": "§3.3 — division by zero yields blank, never throws (totality)", "verb": "calculate",
-      "expr": "a / b", "values": { "a": 5, "b": 0 }, "expected": null }
+      "expr": "a / b", "values": { "a": 5, "b": 0 }, "expected": null },
+    { "note": "§3.3 — arithmetic precedence (* before +)", "verb": "calculate",
+      "expr": "a + b * 2", "values": { "a": 1, "b": 3 }, "expected": 7 },
+    { "note": "§3.3 — parens override precedence", "verb": "calculate",
+      "expr": "(a + b) * 2", "values": { "a": 1, "b": 3 }, "expected": 8 }
   ]
 }
