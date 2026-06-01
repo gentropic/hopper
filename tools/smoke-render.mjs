@@ -39,15 +39,19 @@ try {
     undefined, { timeout: 2000 });
 
   // save → signs an immutable record (Ed25519: native or bundled noble fallback)
-  // → persists to IndexedDB → outbox count increments
+  // → persists to IndexedDB → the single-copy durability warning appears
+  page.on('download', (d) => d.cancel());
   await page.locator('.hf-field').filter({ hasText: 'Site ID' }).locator('input').fill('QF-SMOKE');
-  await page.waitForFunction(() => document.querySelector('.hf-outbox')?.dataset.count === '0', undefined, { timeout: 2000 });
   await page.getByRole('button', { name: 'Save record' }).click();
-  await page.waitForFunction(() => document.querySelector('.hf-outbox')?.dataset.count === '1', undefined, { timeout: 5000 });
-  await page.waitForFunction(() => /saved ✓/.test(document.querySelector('.hf-out')?.textContent || ''), undefined, { timeout: 2000 });
+  await page.waitForFunction(() => /saved ✓/.test(document.querySelector('.hf-out')?.textContent || ''), undefined, { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector('.hf-warn')?.dataset.unbacked === '1', undefined, { timeout: 2000 });
+
+  // export off-device → the single-copy warning clears (durability floor, DECISIONS §1)
+  await page.getByRole('button', { name: 'Export all' }).click();
+  await page.waitForFunction(() => !document.querySelector('.hf-warn'), undefined, { timeout: 2000 });
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ renderer smoke passed — form, relevance, repeat+aggregate, constraint, save→sign→IDB');
+  console.log('✓ renderer smoke passed — form, relevance, repeat+aggregate, constraint, save→sign→IDB, durability warn+export');
   await browser.close();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

@@ -67,5 +67,42 @@ export function createStore(backend) {
     return out;
   }
 
-  return { init, putForm, saveRecord, listRecords, identity: () => identity, count: () => counter };
+  // ---- durability (DECISIONS §1) ----
+
+  // A faithful repo snapshot for off-device backup — streams + forms + this
+  // stream's records. Excludes /identity.json (it holds the private key; key
+  // backup is a separate, deliberate flow). Records stay verifiable: their
+  // signatures check against the pubkey in streams/<sid>.json, also included.
+  async function exportBundle() {
+    const out = { v: 1, streams: {}, forms: {}, records: [] };
+    for (const n of await listDir('/streams')) out.streams[n] = await readJSON(`/streams/${n}`);
+    for (const n of await listDir('/forms')) out.forms[n] = await readJSON(`/forms/${n}`);
+    const rdir = `/records/${identity.streamId}`;
+    for (const n of (await listDir(rdir)).slice().sort()) out.records.push(await readJSON(`${rdir}/${n}`));
+    return out;
+  }
+
+  async function markExported() { await writeJSON('/export-meta.json', { count: counter, at: new Date().toISOString() }); }
+  async function unbackedUp() { const m = await readJSON('/export-meta.json'); return Math.max(0, counter - ((m && m.count) || 0)); }
+
+  // Browser-only: request persistent storage (the eviction lever — covers IDB +
+  // OPFS) and read the durability status. Degrade gracefully off-browser/in tests.
+  async function persistRequest() {
+    try { return (navigator.storage && navigator.storage.persist) ? await navigator.storage.persist() : false; } catch { return false; }
+  }
+  async function status() {
+    let persisted = false, bytesUsed = 0;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.storage) {
+        if (navigator.storage.persisted) persisted = await navigator.storage.persisted();
+        if (navigator.storage.estimate) bytesUsed = (await navigator.storage.estimate()).usage || 0;
+      }
+    } catch {}
+    return { persisted, bytesUsed, recordCount: counter, unbackedUp: await unbackedUp() };
+  }
+
+  return {
+    init, putForm, saveRecord, listRecords, identity: () => identity, count: () => counter,
+    exportBundle, markExported, unbackedUp, persistRequest, status,
+  };
 }

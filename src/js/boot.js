@@ -35,31 +35,60 @@ const DEMO = {
   views: [],
 };
 
+const mk = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+
+function downloadJSON(filename, obj) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const a = mk('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 async function setup() {
   const app = document.getElementById('app');
   if (!app) return;
   app.replaceChildren();
-  const main = document.createElement('main'); main.className = 'hf-app';
-  const h1 = document.createElement('h1'); h1.textContent = DEMO.meta.title; main.append(h1);
-  const outbox = document.createElement('div'); outbox.className = 'hf-outbox'; main.append(outbox);
-  const host = document.createElement('div'); main.append(host);
+  const main = mk('main', 'hf-app');
+  const h1 = mk('h1'); h1.textContent = DEMO.meta.title; main.append(h1);
+  const readout = mk('div', 'hf-readout'); main.append(readout);
+  const host = mk('div'); main.append(host);
   app.append(main);
 
   const store = createStore(new vfs.IDBBackend({ name: 'hopper' }));
   const id = await store.init({ name: 'collector' });
   const formHash = await store.putForm(DEMO);
+  await store.persistRequest();                         // ask for persistent storage (the eviction lever)
 
-  const refreshOutbox = async () => {
-    const recs = await store.listRecords();
-    outbox.textContent = `Outbox · ${recs.length} record${recs.length === 1 ? '' : 's'} · ${id.streamId.slice(0, 8)}…`;
-    outbox.dataset.count = String(recs.length);
-  };
-  await refreshOutbox();
+  // The storage readout — a trust instrument (DECISIONS §1 / collector §4.3):
+  // persistence state, record count, bytes, the loud single-copy warning, export.
+  async function refresh() {
+    const s = await store.status();
+    readout.replaceChildren();
+    const line = mk('div', 'hf-readout-line');
+    const badge = mk('span', 'hf-badge ' + (s.persisted ? 'ok' : 'warn'));
+    badge.textContent = s.persisted ? 'persistent ✓' : 'best-effort ⚠';
+    const info = mk('span', 'hf-readout-info');
+    info.textContent = `${s.recordCount} record${s.recordCount === 1 ? '' : 's'} · ${(s.bytesUsed / 1024).toFixed(0)} KB · ${id.streamId.slice(0, 8)}…`;
+    const exp = mk('button', 'hf-export'); exp.type = 'button'; exp.textContent = 'Export all';
+    exp.addEventListener('click', async () => {
+      downloadJSON(`hopper-${DEMO.meta.id}-${Date.now()}.json`, await store.exportBundle());
+      await store.markExported();
+      await refresh();
+    });
+    line.append(badge, info, exp);
+    readout.append(line);
+    if (s.unbackedUp > 0) {
+      const w = mk('div', 'hf-warn'); w.dataset.unbacked = String(s.unbackedUp);
+      w.textContent = `⚠ ${s.unbackedUp} record${s.unbackedUp === 1 ? '' : 's'} exist only on this device — export or sync`;
+      readout.append(w);
+    }
+  }
+  await refresh();
 
   // Save = sign the values into an immutable record and append it (the save boundary).
   renderForm(createForm(DEMO), host, async (values) => {
     const rec = await store.saveRecord({ form: formHash, values });
-    await refreshOutbox();
+    await refresh();
     return rec;
   });
 }
