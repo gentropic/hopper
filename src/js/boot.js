@@ -1,22 +1,47 @@
-// Boot — mounts the collector shell and registers the service worker.
-// Scaffold: renders a placeholder (and a live content-address, proving the
-// records/ module works in-browser) until the renderer and shell land.
+// Boot — renders a demo form end-to-end (engine + DOM renderer) and registers
+// the service worker. Forms will arrive from yaml / xlsform / capsule / registry;
+// this embedded tree is a stand-in until those land.
 
-import { contentAddress, utf8 } from './records/address.js';
+import { createForm } from './renderer/state.js';
+import { renderForm } from './renderer/render.js';
 
-async function mount() {
+const DEMO = {
+  type: 'form',
+  meta: { id: 'qfdemo', title: 'QF Sample Log (demo)', mode: 'append' },
+  fields: [
+    { name: 'site_id', fieldType: 'text', label: 'Site ID', props: { required: true } },
+    { name: 'coords', fieldType: 'geo', label: 'Coordinates', props: {} },
+    { name: 'resample', fieldType: 'select', label: 'Resample needed?', props: { list: 'yesno' } },
+    { name: 'why', fieldType: 'text', label: 'Why resample?', props: {} },
+    { name: 'samples', fieldType: 'repeat', label: 'Samples', props: {}, children: [
+      { name: 'lithology', fieldType: 'select', label: 'Lithology', props: { list: 'litho' } },
+      { name: 'fe_pct', fieldType: 'number', label: 'Fe %', props: {} },
+    ] },
+    { name: 'n_samples', fieldType: 'calc', label: 'Sample count', props: {} },
+    { name: 'thanks', fieldType: 'note', label: 'Logged. Obrigado.', props: {} },
+  ],
+  choices: {
+    yesno: [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }],
+    litho: [{ value: 'itabirite', label: 'itabirite' }, { value: 'hematitite', label: 'hematitite' }, { value: 'canga', label: 'canga' }],
+  },
+  rules: [
+    { verb: 'relevant', target: 'why', expr: 'resample = "yes"' },
+    { verb: 'constrain', target: 'fe_pct', expr: 'fe_pct between 0 and 100', message: 'Must be 0–100' },
+    { verb: 'calculate', target: 'n_samples', expr: 'count(samples)' },
+    { verb: 'show', label: 'high-grade', expr: 'mean(samples.fe_pct) > 60' },
+  ],
+  views: [],
+};
+
+function mount() {
   const app = document.getElementById('app');
   if (!app) return;
-  let addr = '(computing…)';
-  try { addr = await contentAddress(utf8('hopper')); } catch (e) { addr = '(crypto unavailable)'; }
-  app.innerHTML = `
-    <main class="scaffold">
-      <h1>Hopper</h1>
-      <p class="tag">collector · scaffold build</p>
-      <p class="muted">The shell, renderer, storage, and sync land here.
-      See <code>docs/</code> for the specs.</p>
-      <p class="muted">content-address of <code>"hopper"</code>:<br><code>${addr}</code></p>
-    </main>`;
+  app.replaceChildren();
+  const main = document.createElement('main'); main.className = 'hf-app';
+  const h1 = document.createElement('h1'); h1.textContent = DEMO.meta.title; main.append(h1);
+  const host = document.createElement('div'); main.append(host);
+  app.append(main);
+  renderForm(createForm(DEMO), host);
 }
 
 if ('serviceWorker' in navigator) {

@@ -8,7 +8,7 @@
 // are raw 32-byte values, matching `crypto.js`'s native encoding, so signatures
 // interoperate (verified in test/records-noble.test.mjs).
 
-import * as nobleEd from '../../vendor/noble-ed25519.js';
+import * as nobleEd from '../../../vendor/noble-ed25519.js';
 import { setEd25519Backend } from './crypto.js';
 import { bytesToB64Url } from './address.js';
 

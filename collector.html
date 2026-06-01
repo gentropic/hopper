@@ -32,13 +32,49 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sans); }
-#app { min-height: 100%; display: grid; place-items: center; }
+#app { min-height: 100%; }
 
-.scaffold { text-align: center; padding: 2rem; max-width: 32rem; }
+.scaffold { text-align: center; padding: 2rem; max-width: 32rem; margin: 0 auto; }
 .scaffold h1 { font-family: var(--au-mono); letter-spacing: .02em; margin: 0 0 .25rem; }
 .scaffold .tag { color: var(--au-action); font-family: var(--au-mono); font-size: .85rem; }
 .scaffold .muted { color: var(--au-muted); font-size: .9rem; }
 .scaffold code { font-family: var(--au-mono); font-size: .8rem; word-break: break-all; }
+
+/* ── form renderer ─────────────────────────────────────────────────────── */
+.hf-app { max-width: 34rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+.hf-app h1 { font-family: var(--au-mono); font-size: 1.2rem; letter-spacing: .01em; }
+.hf-form { display: flex; flex-direction: column; gap: .9rem; }
+
+.hf-field { display: flex; flex-direction: column; gap: .25rem; }
+.hf-field[hidden], .hf-group[hidden] { display: none; }
+.hf-label { font-size: .85rem; color: var(--au-muted); }
+.hf-field input, .hf-field select {
+  font: inherit; padding: .5rem .6rem; border: 1px solid var(--au-border);
+  border-radius: 6px; background: var(--au-surface); color: var(--au-text);
+}
+.hf-field.hf-invalid input, .hf-field.hf-invalid select { border-color: #C8443B; }
+.hf-error { color: #C8443B; font-size: .78rem; min-height: 1em; }
+.hf-calc { font-family: var(--au-mono); color: var(--au-text); }
+.hf-note { color: var(--au-muted); font-style: italic; margin: .25rem 0; }
+.hf-stub { color: var(--au-muted); font-size: .85rem; padding: .5rem; border: 1px dashed var(--au-border); border-radius: 6px; }
+.hf-multi { display: flex; flex-wrap: wrap; gap: .5rem; }
+.hf-check { display: inline-flex; align-items: center; gap: .2rem; font-size: .9rem; }
+
+.hf-group { border: 1px solid var(--au-border); border-radius: 8px; padding: .25rem .75rem .75rem; }
+.hf-group > summary { font-family: var(--au-mono); font-size: .85rem; cursor: pointer; padding: .5rem 0; color: var(--au-muted); }
+.hf-group > .hf-field, .hf-group > .hf-repeat { margin-top: .6rem; }
+
+.hf-repeat { border-left: 2px solid var(--au-action); padding-left: .75rem; }
+.hf-repeat-head { font-family: var(--au-mono); font-size: .85rem; color: var(--au-muted); margin: .25rem 0; }
+.hf-instance { position: relative; border: 1px solid var(--au-border); border-radius: 8px; padding: .75rem; margin-bottom: .6rem; display: flex; flex-direction: column; gap: .6rem; }
+.hf-remove { position: absolute; top: .4rem; right: .4rem; border: none; background: none; color: var(--au-muted); font-size: 1.1rem; cursor: pointer; }
+.hf-add { align-self: flex-start; font: inherit; padding: .35rem .8rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-action); cursor: pointer; }
+
+.hf-flags { display: flex; gap: .4rem; flex-wrap: wrap; min-height: 1.5rem; margin-bottom: .5rem; }
+.hf-flag { font-family: var(--au-mono); font-size: .72rem; background: var(--au-action); color: #fff; padding: .12rem .5rem; border-radius: 999px; }
+.hf-save { margin-top: 1.25rem; font: inherit; padding: .55rem 1.1rem; border: none; border-radius: 6px; background: var(--au-action); color: #fff; cursor: pointer; }
+.hf-out { font-family: var(--au-mono); font-size: .72rem; white-space: pre-wrap; word-break: break-all; background: var(--au-surface); border: 1px solid var(--au-border); border-radius: 6px; padding: .6rem; margin-top: .75rem; }
+.hf-out:empty { display: none; }
 
 </style>
 </head>
@@ -1695,26 +1731,906 @@ function treeToXlsform(tree) {
   return { survey, choices, settings, dropped };
 }
 
+// ── vendor/sideact.js (namespace: sideact) ──
+const sideact = (function () {
+// ⚠ GENERATED FILE — DO NOT EDIT. Source: ext/sideact/src/  Build: node ext/sideact/build.js
+// @gcu/sideact — signals + templates + DOM binding
+// standalone reactive UI library. zero dependencies.
+
+// -- signals.js --
+
+// @gcu/sideact — signals: reactive primitives (signal, computed, effect, batch)
+// Zero dependencies, no DOM. Usable in Node, workers, or any JS environment.
+
+// ── tracking ──
+
+let _tracking = null;
+let _batchDepth = 0;
+const _pendingEffects = new Set();
+let _scheduled = false;
+
+function _flush() {
+  _scheduled = false;
+  const effects = [..._pendingEffects];
+  _pendingEffects.clear();
+  for (const e of effects) e._run();
+}
+
+function _schedule(e) {
+  _pendingEffects.add(e);
+  if (!_scheduled) { _scheduled = true; queueMicrotask(_flush); }
+}
+
+// ── signal ──
+
+function signal(initial) {
+  let _value = initial;
+  const _subs = new Set();
+
+  function read() {
+    if (_tracking) _subs.add(_tracking);
+    return _value;
+  }
+
+  function write(v) {
+    const next = typeof v === 'function' ? v(_value) : v;
+    if (next === _value) return;
+    _value = next;
+    for (const s of _subs) {
+      if (s._dirty !== undefined) s._dirty = true; // computed
+      if (s._effect) _schedule(s); // effect
+    }
+  }
+
+  return [read, write];
+}
+
+// ── computed ──
+
+function computed(fn) {
+  let _value, _dirty = true;
+  const _subs = new Set();
+
+  const node = {
+    _dirty: true,
+    _effect: false,
+    _run() {
+      const prev = _tracking;
+      _tracking = node;
+      _value = fn();
+      _tracking = prev;
+      _dirty = false;
+    },
+  };
+
+  function read() {
+    if (_tracking) _subs.add(_tracking);
+    if (_dirty || node._dirty) { node._dirty = false; node._run(); }
+    return _value;
+  }
+
+  // propagate dirty to downstream
+  const origDirty = Object.getOwnPropertyDescriptor(node, '_dirty');
+  Object.defineProperty(node, '_dirty', {
+    get() { return _dirty; },
+    set(v) {
+      _dirty = v;
+      if (v) for (const s of _subs) {
+        if (s._dirty !== undefined) s._dirty = true;
+        if (s._effect) _schedule(s);
+      }
+    },
+  });
+
+  // initial computation to register dependencies
+  node._run();
+
+  return read;
+}
+
+// ── effect ──
+
+function effect(fn) {
+  let _cleanup = null;
+  let _disposed = false;
+  const _deps = new Set(); // signals/computeds we're subscribed to
+
+  const node = {
+    _effect: true,
+    _dirty: undefined,
+    _run() {
+      if (_disposed) return;
+      if (typeof _cleanup === 'function') _cleanup();
+      const prev = _tracking;
+      _tracking = node;
+      _cleanup = fn();
+      _tracking = prev;
+    },
+  };
+
+  // initial run
+  node._run();
+
+  return function dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    if (typeof _cleanup === 'function') _cleanup();
+    _pendingEffects.delete(node);
+  };
+}
+
+// ── batch ──
+
+function batch(fn) {
+  _batchDepth++;
+  try { fn(); } finally {
+    _batchDepth--;
+    if (_batchDepth === 0 && !_scheduled && _pendingEffects.size > 0) {
+      _scheduled = true;
+      queueMicrotask(_flush);
+    }
+  }
+}
+
+// -- dom.js --
+
+// @gcu/sideact — DOM: template/hyperscript element creation and binding.
+// Requires `document` — browser/JSDOM environments only.
+
+
+// ── h: dual-mode element creator ──
+
+const _templateCache = new WeakMap();
+
+function h(first, ...rest) {
+  if (Array.isArray(first) && first.raw) return _templateMode(first, rest);
+  return _hyperscriptMode(first, rest[0], rest.slice(1));
+}
+
+// ── tagged template mode ──
+
+// Sentinel marker for interpolation points — works in both text and attribute contexts.
+// Uses a prefix unlikely to appear in real content.
+const _MARKER = '\x01sr:';
+
+function _templateMode(strings, values) {
+  let cached = _templateCache.get(strings);
+  if (!cached) {
+    cached = _parseTemplate(strings);
+    _templateCache.set(strings, cached);
+  }
+  return _instantiate(cached, values);
+}
+
+function _parseTemplate(strings) {
+  // join with markers
+  let html = '';
+  for (let i = 0; i < strings.length; i++) {
+    html += strings[i];
+    if (i < strings.length - 1) html += `${_MARKER}${i}\x01`;
+  }
+
+  // detect SVG/MathML root
+  const trimmed = html.trimStart();
+  let ns = null;
+  if (trimmed.startsWith('<svg')) ns = 'http://www.w3.org/2000/svg';
+  else if (trimmed.startsWith('<math')) ns = 'http://www.w3.org/1998/Math/MathML';
+
+  // parse with native HTML parser
+  const tpl = document.createElement('template');
+  if (ns) {
+    const wrapper = document.createElementNS(ns, ns === 'http://www.w3.org/2000/svg' ? 'svg' : 'math');
+    wrapper.innerHTML = html;
+    while (wrapper.firstChild) tpl.content.appendChild(wrapper.firstChild);
+  } else {
+    tpl.innerHTML = html;
+  }
+
+  // find binding locations by walking the parsed tree
+  const bindings = [];
+  _findBindings(tpl.content, bindings);
+
+  return { tpl, bindings };
+}
+
+const _MARKER_RE = /\x01sr:(\d+)\x01/;
+const _MARKER_RE_G = /\x01sr:(\d+)\x01/g;
+
+function _findBindings(node, bindings) {
+  if (node.nodeType === 1) { // Element
+    // scan attributes for markers
+    const attrs = [...node.attributes];
+    for (const attr of attrs) {
+      const m = attr.value.match(_MARKER_RE);
+      if (m) {
+        const idx = parseInt(m[1]);
+        node.removeAttribute(attr.name);
+        bindings.push({ type: 'attr', path: _nodePath(node), name: attr.name, idx });
+      }
+    }
+  }
+  if (node.nodeType === 3) { // Text
+    const m = node.textContent.match(_MARKER_RE);
+    if (m) {
+      // split text node around markers: before | anchor | ... | after
+      const parts = node.textContent.split(_MARKER_RE_G);
+      const parent = node.parentNode;
+      const ref = node.nextSibling;
+      parent.removeChild(node);
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
+          // static text
+          if (parts[i]) parent.insertBefore(document.createTextNode(parts[i]), ref);
+        } else {
+          // marker index — insert anchor text node
+          const anchor = document.createTextNode('');
+          parent.insertBefore(anchor, ref);
+          bindings.push({ type: 'text', path: _nodePath(anchor), idx: parseInt(parts[i]) });
+        }
+      }
+      return; // children already processed via split
+    }
+  }
+  // recurse children (copy array since we may modify)
+  const children = [...node.childNodes];
+  for (const child of children) _findBindings(child, bindings);
+}
+
+function _nodePath(target) {
+  const path = [];
+  let node = target;
+  while (node.parentNode) {
+    const parent = node.parentNode;
+    let idx = 0;
+    for (let c = parent.firstChild; c; c = c.nextSibling, idx++) {
+      if (c === node) break;
+    }
+    path.unshift(idx);
+    node = parent;
+  }
+  return path;
+}
+
+function _resolve(root, path) {
+  let node = root;
+  for (const idx of path) {
+    node = node.childNodes[idx];
+    if (!node) return null;
+  }
+  return node;
+}
+
+function _instantiate(cached, values) {
+  const fragment = cached.tpl.content.cloneNode(true);
+  const disposers = [];
+
+  // PASS 1 — resolve every binding's target node BEFORE any mutation. Applying
+  // a binding can insert ≠1 nodes (a multi-root h`` fragment or an array value);
+  // replaceChild then shifts the positional index of every later sibling, so a
+  // path resolved mid-loop would land on the wrong node. Capturing node
+  // references up front (identity is stable under sibling-index shifts) makes
+  // binding order irrelevant.
+  const resolved = cached.bindings.map((b) => ({ b, node: _resolve(fragment, b.path) }));
+
+  // PASS 2 — apply.
+  for (const { b, node } of resolved) {
+    if (!node) continue;
+    const value = values[b.idx];
+    if (b.type === 'text') {
+      _bindText(node, value, disposers);
+    } else if (b.type === 'attr') {
+      _bindAttr(node, b.name, value, disposers);
+    }
+  }
+
+  fragment._disposers = disposers;
+  // strip leading/trailing whitespace-only text nodes
+  while (fragment.firstChild && fragment.firstChild.nodeType === 3 && !fragment.firstChild.textContent.trim()) {
+    fragment.removeChild(fragment.firstChild);
+  }
+  while (fragment.lastChild && fragment.lastChild.nodeType === 3 && !fragment.lastChild.textContent.trim()) {
+    fragment.removeChild(fragment.lastChild);
+  }
+  const children = [...fragment.childNodes];
+  if (children.length === 1) {
+    children[0]._disposers = disposers;
+    return children[0];
+  }
+  return fragment;
+}
+
+// ── binding helpers ──
+
+function _bindText(anchor, value, disposers) {
+  if (typeof value === 'function' && !_isNode(value)) {
+    // reactive text
+    const text = document.createTextNode('');
+    anchor.parentNode.replaceChild(text, anchor);
+    disposers.push(effect(() => {
+      const v = value();
+      text.textContent = v == null ? '' : String(v);
+    }));
+  } else if (_isNode(value)) {
+    anchor.parentNode.replaceChild(value, anchor);
+  } else if (Array.isArray(value)) {
+    const frag = document.createDocumentFragment();
+    for (const item of value) {
+      if (_isNode(item)) frag.appendChild(item);
+      else frag.appendChild(document.createTextNode(item == null ? '' : String(item)));
+    }
+    anchor.parentNode.replaceChild(frag, anchor);
+  } else {
+    anchor.textContent = value == null ? '' : String(value);
+  }
+}
+
+function _bindAttr(el, name, value, disposers) {
+  if (name.startsWith('on') && name.length > 2) {
+    // event listener
+    el.addEventListener(name.slice(2), value);
+  } else if (typeof value === 'function') {
+    // reactive attribute
+    disposers.push(effect(() => {
+      const v = value();
+      _setAttr(el, name, v);
+    }));
+  } else {
+    _setAttr(el, name, value);
+  }
+}
+
+function _setAttr(el, name, value) {
+  if (name === 'class' || name === 'className') {
+    el.className = value || '';
+  } else if (name === 'style' && typeof value === 'object') {
+    Object.assign(el.style, value);
+  } else if (typeof value === 'boolean') {
+    if (value) el.setAttribute(name, '');
+    else el.removeAttribute(name);
+  } else if (value == null) {
+    el.removeAttribute(name);
+  } else {
+    el.setAttribute(name, value);
+  }
+}
+
+function _isNode(v) {
+  return v && typeof v === 'object' && (v.nodeType || v instanceof DocumentFragment);
+}
+
+// ── hyperscript mode ──
+
+function _hyperscriptMode(tag, props, children) {
+  if (typeof tag === 'function') {
+    // component — just call it
+    return tag(props, ...children);
+  }
+
+  const el = document.createElement(tag);
+  const disposers = [];
+
+  if (props && typeof props === 'object' && !_isNode(props)) {
+    for (const [k, v] of Object.entries(props)) {
+      _bindAttr(el, k, v, disposers);
+    }
+  } else if (props != null) {
+    // props is actually a child
+    children = [props, ...children];
+  }
+
+  for (const child of children) {
+    _appendHChild(el, child, disposers);
+  }
+
+  if (disposers.length) el._disposers = disposers;
+  return el;
+}
+
+function _appendHChild(parent, child, disposers) {
+  if (child == null || child === false) return;
+  if (_isNode(child)) {
+    parent.appendChild(child);
+  } else if (typeof child === 'function') {
+    const text = document.createTextNode('');
+    parent.appendChild(text);
+    disposers.push(effect(() => {
+      const v = child();
+      text.textContent = v == null ? '' : String(v);
+    }));
+  } else if (Array.isArray(child)) {
+    for (const item of child) _appendHChild(parent, item, disposers);
+  } else {
+    parent.appendChild(document.createTextNode(String(child)));
+  }
+}
+
+// -- render.js --
+
+// @gcu/sideact — render: list rendering (each) and root mount (render).
+// Requires `document`.
+
+
+
+// ── each ──
+
+function each(signalOrFn, mapFn, keyFn) {
+  const frag = document.createDocumentFragment();
+  const anchor = document.createComment('each');
+  frag.appendChild(anchor);
+  const disposers = [];
+
+  let prevItems = [];
+  let prevNodes = [];
+  let prevDisposers = [];
+
+  disposers.push(effect(() => {
+    const items = typeof signalOrFn === 'function' ? signalOrFn() : signalOrFn;
+    const arr = Array.isArray(items) ? items : [...items];
+
+    if (keyFn) {
+      // keyed reconciliation
+      const newKeys = arr.map(keyFn);
+      const prevKeys = prevItems.map(keyFn);
+      const newNodes = [];
+      const newDisp = [];
+      const parent = anchor.parentNode;
+
+      for (let i = 0; i < arr.length; i++) {
+        const oldIdx = prevKeys.indexOf(newKeys[i]);
+        if (oldIdx >= 0) {
+          newNodes.push(prevNodes[oldIdx]);
+          newDisp.push(prevDisposers[oldIdx]);
+          prevNodes[oldIdx] = null; // mark as reused
+        } else {
+          const node = mapFn(arr[i], i);
+          newNodes.push(node);
+          newDisp.push(node._disposers || []);
+        }
+      }
+
+      // remove unused old nodes
+      for (let i = 0; i < prevNodes.length; i++) {
+        if (prevNodes[i]) {
+          prevNodes[i].remove();
+          if (Array.isArray(prevDisposers[i])) prevDisposers[i].forEach(d => typeof d === 'function' && d());
+        }
+      }
+
+      // insert in order
+      if (parent) {
+        let ref = anchor.nextSibling;
+        for (const node of newNodes) {
+          if (node !== ref) parent.insertBefore(node, ref);
+          else ref = ref.nextSibling;
+        }
+      }
+
+      prevItems = arr;
+      prevNodes = newNodes;
+      prevDisposers = newDisp;
+    } else {
+      // simple — rebuild
+      const parent = anchor.parentNode;
+
+      // remove old
+      for (const node of prevNodes) node.remove();
+      for (const d of prevDisposers) if (typeof d === 'function') d(); else if (Array.isArray(d)) d.forEach(dd => typeof dd === 'function' && dd());
+
+      const newNodes = [];
+      const newDisp = [];
+      for (let i = 0; i < arr.length; i++) {
+        const node = mapFn(arr[i], i);
+        newNodes.push(node);
+        newDisp.push(node._disposers || []);
+        if (parent) parent.insertBefore(node, anchor.nextSibling ? null : null);
+      }
+
+      // insert after anchor
+      if (parent) {
+        const ref = anchor.nextSibling;
+        for (const node of newNodes) parent.insertBefore(node, ref);
+      }
+
+      prevItems = arr;
+      prevNodes = newNodes;
+      prevDisposers = newDisp;
+    }
+  }));
+
+  frag._disposers = disposers;
+  return frag;
+}
+
+// ── render ──
+
+function render(content, container) {
+  container.textContent = '';
+  const allDisposers = [];
+
+  if (_isNode(content)) {
+    if (content._disposers) allDisposers.push(...content._disposers);
+    container.appendChild(content);
+  }
+
+  return function dispose() {
+    for (const d of allDisposers) {
+      if (typeof d === 'function') d();
+    }
+    container.textContent = '';
+  };
+}
+
+// -- main.js --
+
+// @gcu/sideact — concat build manifest + Auditable cell-hook registration.
+// Import order below doubles as concat order for build.js.
+
+
+
+
+
+// ── notebook integration hook ──
+// Self-registers sr.state() when running inside Auditable cells.
+// sr.state(initial) persists signals across cell re-executions.
+// Pure sideact (signal/computed/effect/h/each/render) is unaffected.
+
+if (typeof window !== 'undefined') {
+  const _srHook = {
+    setup(cell, ctx) {
+      if (!ctx.sr) return;
+      if (!cell._srState) cell._srState = [];
+      // reset persisted state when cell code changes
+      if (cell._srStateCode !== cell.code) {
+        cell._srState = [];
+        cell._srStateCode = cell.code;
+      }
+      let hookIdx = 0;
+      ctx.sr.state = function state(initial) {
+        const idx = hookIdx++;
+        if (idx < cell._srState.length) return cell._srState[idx];
+        const s = signal(initial);
+        cell._srState[idx] = s;
+        return s;
+      };
+    },
+  };
+
+  const register = window.auditable?.registerExtension;
+  if (register) {
+    register({
+      name: '@gcu/sideact',
+      version: '0.1.0',
+      description: 'Signals + DOM binding — sr.state() persistence across cell re-executions',
+      contextHook: _srHook,
+    });
+  } else {
+    (window._cellContextHooks = window._cellContextHooks || []).push(_srHook);
+  }
+}
+return { signal, computed, effect, batch, h, each, render };
+})();
+
+// ── src/js/renderer/state.js ──
+// The reactive form engine — SPEC-hopper-form §8 tree → live, reactive state.
+// Pure (sideact signals, no DOM), so it's testable headlessly; the DOM layer
+// (render.js) binds widgets to it via effects.
+//
+// Field values are signals. Rule results (relevance, validity, calc, show flags,
+// aggregates) are evaluated on demand against a current-values snapshot —
+// reading the signals, so any `effect`/`computed` that calls them auto-tracks
+// the right dependencies (sideact does the dependency graph; deps() is for
+// analysis, not needed here). Repeats hold an array of per-instance states;
+// rules on repeat children evaluate per-instance (instance values over the flat
+// top-level scope, §4.7).
+
+// Namespace-import sideact so it works both as real ESM (node:test) and in the
+// flat build (where it's namespace-wrapped to a `sideact` global). Destructure a
+// name not used by any other flat-inlined module (build = one shared scope).
+
+
+const { signal } = sideact;
+
+const isEmptyVal = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);   // distinct name (flat build: one shared scope)
+const defaultOf = (node) => (node.props && 'default' in node.props ? node.props.default : null);
+function tryParse(expr) { try { return parse(expr); } catch { return null; } }
+
+function createForm(tree) {
+  const rules = (tree.rules || []).map((r) => ({ ...r, ast: tryParse(r.expr) })).filter((r) => r.ast);  // unparseable → degraded (skipped)
+  const byTarget = (verb, target) => rules.filter((r) => r.verb === verb && r.target === target);
+  const showRules = rules.filter((r) => r.verb === 'show');
+
+  const flat = new Map();        // name -> { node, get, set }  (top-level + group fields)
+  const repeats = new Map();     // name -> { node, items, setItems }
+  const nodeByName = new Map();  // every field/container node by name
+
+  function build(nodes, intoFlat) {
+    const out = [];
+    for (const node of nodes || []) {
+      nodeByName.set(node.name, node);
+      if (node.fieldType === 'group') {
+        out.push({ kind: 'group', node, children: build(node.children, intoFlat) });
+      } else if (node.fieldType === 'repeat') {
+        const s = signal([]);
+        const rs = { kind: 'repeat', node, items: s[0], setItems: s[1] };
+        repeats.set(node.name, rs);
+        for (const c of node.children || []) nodeByName.set(c.name, c);
+        out.push(rs);
+      } else {
+        const s = signal(defaultOf(node));
+        const fs = { kind: 'field', node, get: s[0], set: s[1] };
+        if (intoFlat) flat.set(node.name, fs);
+        out.push(fs);
+      }
+    }
+    return out;
+  }
+  const roots = build(tree.fields, true);
+
+  function makeInstance(repeatNode) {
+    const children = new Map();
+    for (const c of repeatNode.children || []) {
+      const s = signal(defaultOf(c));
+      children.set(c.name, { node: c, get: s[0], set: s[1] });
+    }
+    return { children };
+  }
+
+  // ---- value snapshots (read signals → tracked) ----
+  function flatValues() {
+    const o = {};
+    for (const [name, fs] of flat) if (fs.node.fieldType !== 'calc') o[name] = fs.get();
+    return o;
+  }
+  function repeatValues(name) {
+    return repeats.get(name).items().map((inst) => {
+      const o = {}; for (const [cn, cs] of inst.children) o[cn] = cs.get(); return o;
+    });
+  }
+  function topSnapshot() {
+    const o = flatValues();
+    for (const name of repeats.keys()) o[name] = repeatValues(name);
+    for (const [name, fs] of flat) if (fs.node.fieldType === 'calc') {   // single-level calc pass
+      const r = byTarget('calculate', name)[0];
+      o[name] = r ? evaluate(r.ast, o) : null;
+    }
+    return o;
+  }
+  function instScope(inst) {
+    const o = flatValues();
+    for (const [cn, cs] of inst.children) o[cn] = cs.get();
+    return o;
+  }
+  const scopeFor = (inst) => (inst ? instScope(inst) : topSnapshot());
+
+  // ---- reactive rule accessors (call inside an effect/computed to react) ----
+  function isRelevant(name, inst) {
+    const rs = byTarget('relevant', name);
+    if (!rs.length) return true;
+    const s = scopeFor(inst);
+    return rs.every((r) => evaluate(r.ast, s) === true);
+  }
+  function validity(name, inst) {
+    const node = nodeByName.get(name) || { props: {} };
+    const s = scopeFor(inst);
+    const blank = isEmptyVal(s[name]);
+    const reqRule = byTarget('require', name)[0];
+    const reqActive = node.props && (node.props.required === true || typeof node.props.required === 'string') || (reqRule && evaluate(reqRule.ast, s) === true);
+    if (reqActive && blank) return { valid: false, message: (node.props && typeof node.props.required === 'string') ? node.props.required : 'Required' };
+    const cRule = byTarget('constrain', name)[0];
+    if (cRule && !blank && evaluate(cRule.ast, s) !== true) return { valid: false, message: cRule.message || 'Invalid value' };
+    return { valid: true };
+  }
+  function calcValue(name, inst) {
+    const r = byTarget('calculate', name)[0];
+    return r ? evaluate(r.ast, scopeFor(inst)) : null;
+  }
+  function flags() {
+    const s = topSnapshot();
+    return showRules.map((r) => ({ label: r.label, on: evaluate(r.ast, s) === true }));
+  }
+
+  // ---- output: the §8/records values map (relevance-erased, §4.5) ----
+  function values() {
+    const o = topSnapshot();
+    for (const [name] of flat) if (!isRelevant(name)) delete o[name];   // irrelevant ⇒ omitted
+    return o;
+  }
+
+  return {
+    tree, roots, nodeByName,
+    get: (name) => flat.get(name) && flat.get(name).get(),
+    set: (name, v) => flat.get(name) && flat.get(name).set(v),
+    repeat: (name) => {
+      const rs = repeats.get(name);
+      return {
+        items: () => rs.items(),
+        add: () => { const inst = makeInstance(rs.node); rs.setItems([...rs.items(), inst]); return inst; },
+        remove: (i) => { const a = rs.items().slice(); a.splice(i, 1); rs.setItems(a); },
+      };
+    },
+    repeatNames: () => [...repeats.keys()],
+    isRelevant, validity, calcValue, flags, values,
+  };
+}
+
+// ── src/js/renderer/render.js ──
+// DOM layer for the renderer — binds widgets to the reactive engine (state.js)
+// via sideact `effect`s. Browser-only (the testable logic lives in state.js).
+// Walks the hierarchical tree: leaf widgets, collapsible groups, repeat
+// add/remove. Relevance hides; validity shows errors; calc/aggregates display.
+
+
+const { effect } = sideact;
+
+const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+const opt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
+const fmt = (v) => (v == null ? '' : String(v));
+
+function renderForm(form, mount) {
+  mount.replaceChildren();
+  const formEl = el('form', 'hf-form');
+  formEl.addEventListener('submit', (e) => e.preventDefault());
+  for (const node of form.tree.fields || []) formEl.append(renderNode(form, node, null));
+
+  const flagsBar = el('div', 'hf-flags');
+  effect(() => {
+    const on = form.flags().filter((f) => f.on);
+    flagsBar.replaceChildren(...on.map((f) => { const c = el('span', 'hf-flag'); c.textContent = f.label; return c; }));
+  });
+
+  const save = el('button', 'hf-save'); save.type = 'button'; save.textContent = 'Save record';
+  const out = el('pre', 'hf-out');
+  save.addEventListener('click', () => { out.textContent = JSON.stringify(form.values(), null, 2); });
+
+  mount.append(flagsBar, formEl, save, out);
+  return { values: () => form.values() };
+}
+
+function renderNode(form, node, inst) {
+  if (node.fieldType === 'group') return renderGroup(form, node, inst);
+  if (node.fieldType === 'repeat') return renderRepeat(form, node);
+  return renderField(form, node, inst);
+}
+
+function renderGroup(form, node, inst) {
+  const d = el('details', 'hf-group'); d.open = true;
+  const sum = document.createElement('summary'); sum.textContent = node.label || node.name; d.append(sum);
+  for (const c of node.children || []) d.append(renderNode(form, c, inst));
+  effect(() => { d.hidden = !form.isRelevant(node.name, inst); });
+  return d;
+}
+
+function renderRepeat(form, node) {
+  const wrap = el('div', 'hf-repeat');
+  const head = el('div', 'hf-repeat-head'); head.textContent = node.label || node.name; wrap.append(head);
+  const list = el('div', 'hf-repeat-list'); wrap.append(list);
+  const add = el('button', 'hf-add'); add.type = 'button'; add.textContent = '+ add';
+  add.addEventListener('click', () => form.repeat(node.name).add());
+  wrap.append(add);
+  // re-render instances only when the array changes (add/remove), not on edits
+  effect(() => {
+    const items = form.repeat(node.name).items();
+    list.replaceChildren(...items.map((inst, i) => {
+      const card = el('div', 'hf-instance');
+      const rm = el('button', 'hf-remove'); rm.type = 'button'; rm.textContent = '×';
+      rm.addEventListener('click', () => form.repeat(node.name).remove(i));
+      card.append(rm);
+      for (const c of node.children || []) card.append(renderNode(form, c, inst));
+      return card;
+    }));
+  });
+  return wrap;
+}
+
+function renderField(form, node, inst) {
+  const ft = node.fieldType;
+  if (ft === 'note') { const p = el('p', 'hf-note'); p.textContent = node.label || ''; return p; }
+
+  const wrap = el('label', 'hf-field');
+  const lab = el('span', 'hf-label');
+  lab.textContent = (node.label || node.name) + (node.props && node.props.required ? ' *' : '');
+  wrap.append(lab);
+
+  const getV = () => (inst ? inst.children.get(node.name).get() : form.get(node.name));
+  const setV = (v) => (inst ? inst.children.get(node.name).set(v) : form.set(node.name, v));
+  const choicesFor = () => (node.props && form.tree.choices && form.tree.choices[node.props.list]) || [];
+
+  if (ft === 'calc') {
+    const o = el('output', 'hf-calc');
+    effect(() => { o.textContent = fmt(form.calcValue(node.name, inst)); });
+    wrap.append(o);
+    return wrap;
+  }
+
+  let input;
+  if (ft === 'select') {
+    input = document.createElement('select');
+    input.append(opt('', '—'));
+    for (const c of choicesFor()) input.append(opt(c.value, c.label));
+    input.value = getV() ?? '';
+    input.addEventListener('change', () => setV(input.value || null));
+  } else if (ft === 'multiselect') {
+    const box = el('div', 'hf-multi');
+    const cur = () => getV() || [];
+    for (const c of choicesFor()) {
+      const l = el('label', 'hf-check'); const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = c.value; cb.checked = cur().includes(c.value);
+      cb.addEventListener('change', () => { const s = new Set(cur()); cb.checked ? s.add(c.value) : s.delete(c.value); setV([...s]); });
+      l.append(cb, document.createTextNode(' ' + c.label)); box.append(l);
+    }
+    input = box;
+  } else if (ft === 'number' || ft === 'range') {
+    input = document.createElement('input'); input.type = ft === 'range' ? 'range' : 'number';
+    const p = node.props || {}; if (p.min != null) input.min = p.min; if (p.max != null) input.max = p.max; if (p.step != null) input.step = p.step;
+    input.value = getV() ?? '';
+    input.addEventListener('input', () => setV(input.value === '' ? null : Number(input.value)));
+  } else if (ft === 'date' || ft === 'time' || ft === 'datetime') {
+    input = document.createElement('input'); input.type = ft === 'datetime' ? 'datetime-local' : ft;
+    input.value = getV() ?? '';
+    input.addEventListener('input', () => setV(input.value || null));
+  } else if (['geo', 'geotrace', 'geoshape', 'photo', 'audio', 'video', 'file', 'barcode'].includes(ft)) {
+    input = el('div', 'hf-stub'); input.textContent = `[${ft} capture — not yet implemented]`;
+    wrap.append(input);
+    effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });
+    return wrap;
+  } else {                                   // text, hidden, rank, and unknown → text input
+    input = document.createElement('input'); input.type = 'text';
+    input.value = getV() ?? '';
+    input.addEventListener('input', () => setV(input.value || null));
+  }
+  wrap.append(input);
+
+  const err = el('span', 'hf-error'); wrap.append(err);
+  effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });
+  effect(() => { const { valid, message } = form.validity(node.name, inst); err.textContent = valid ? '' : message; wrap.classList.toggle('hf-invalid', !valid); });
+  return wrap;
+}
+
 // ── src/js/boot.js ──
-// Boot — mounts the collector shell and registers the service worker.
-// Scaffold: renders a placeholder (and a live content-address, proving the
-// records/ module works in-browser) until the renderer and shell land.
+// Boot — renders a demo form end-to-end (engine + DOM renderer) and registers
+// the service worker. Forms will arrive from yaml / xlsform / capsule / registry;
+// this embedded tree is a stand-in until those land.
 
 
 
-async function mount() {
+
+const DEMO = {
+  type: 'form',
+  meta: { id: 'qfdemo', title: 'QF Sample Log (demo)', mode: 'append' },
+  fields: [
+    { name: 'site_id', fieldType: 'text', label: 'Site ID', props: { required: true } },
+    { name: 'coords', fieldType: 'geo', label: 'Coordinates', props: {} },
+    { name: 'resample', fieldType: 'select', label: 'Resample needed?', props: { list: 'yesno' } },
+    { name: 'why', fieldType: 'text', label: 'Why resample?', props: {} },
+    { name: 'samples', fieldType: 'repeat', label: 'Samples', props: {}, children: [
+      { name: 'lithology', fieldType: 'select', label: 'Lithology', props: { list: 'litho' } },
+      { name: 'fe_pct', fieldType: 'number', label: 'Fe %', props: {} },
+    ] },
+    { name: 'n_samples', fieldType: 'calc', label: 'Sample count', props: {} },
+    { name: 'thanks', fieldType: 'note', label: 'Logged. Obrigado.', props: {} },
+  ],
+  choices: {
+    yesno: [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }],
+    litho: [{ value: 'itabirite', label: 'itabirite' }, { value: 'hematitite', label: 'hematitite' }, { value: 'canga', label: 'canga' }],
+  },
+  rules: [
+    { verb: 'relevant', target: 'why', expr: 'resample = "yes"' },
+    { verb: 'constrain', target: 'fe_pct', expr: 'fe_pct between 0 and 100', message: 'Must be 0–100' },
+    { verb: 'calculate', target: 'n_samples', expr: 'count(samples)' },
+    { verb: 'show', label: 'high-grade', expr: 'mean(samples.fe_pct) > 60' },
+  ],
+  views: [],
+};
+
+function mount() {
   const app = document.getElementById('app');
   if (!app) return;
-  let addr = '(computing…)';
-  try { addr = await contentAddress(utf8('hopper')); } catch (e) { addr = '(crypto unavailable)'; }
-  app.innerHTML = `
-    <main class="scaffold">
-      <h1>Hopper</h1>
-      <p class="tag">collector · scaffold build</p>
-      <p class="muted">The shell, renderer, storage, and sync land here.
-      See <code>docs/</code> for the specs.</p>
-      <p class="muted">content-address of <code>"hopper"</code>:<br><code>${addr}</code></p>
-    </main>`;
+  app.replaceChildren();
+  const main = document.createElement('main'); main.className = 'hf-app';
+  const h1 = document.createElement('h1'); h1.textContent = DEMO.meta.title; main.append(h1);
+  const host = document.createElement('div'); main.append(host);
+  app.append(main);
+  renderForm(createForm(DEMO), host);
 }
 
 if ('serviceWorker' in navigator) {

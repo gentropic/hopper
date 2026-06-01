@@ -17,4 +17,7 @@ import './records/ed25519-fallback.js';                    // registers noble as
 import './records/envelope.js';  // → makeRecord, verifyRecord, correct, tombstone, resolve (§2/§5/§9)
 import './rules/eval.js';        // → parse, evaluate, evalBool, constraintValid, deps (SPEC-hopper-rules)
 import './xlsform/index.js';     // → xlsformToTree, treeToXlsform (+ bridge) — SPEC-hopper-form §9
-import './boot.js';              // mounts the shell, registers the service worker
+import * as sideact from '../../vendor/sideact.js';  // reactive signals (namespace-wrapped)
+import './renderer/state.js';    // → createForm: tree → reactive engine
+import './renderer/render.js';   // → renderForm: engine → DOM
+import './boot.js';              // renders the demo form, registers the service worker
