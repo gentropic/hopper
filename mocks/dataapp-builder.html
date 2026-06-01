@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Works · data-app maker — feel mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --basalt:#15181c; --surface:#1c2025; --panel:#22262c; --panel-2:#262b32;
+  --line:#333a42; --line-soft:#2a2f36;
+  --ink:#e7eaed; --ink-dim:#aab2ba; --muted:#7d868f;
+  --orange:#e8743b; --teal:#28b6a6; --green:#52b06a; --amber:#e0a834; --red:#e2574c; --indigo:#7b83df;
+  --mono:'Space Mono',ui-monospace,Menlo,monospace;
+  --sans:'Barlow',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--basalt);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:
+    linear-gradient(var(--line-soft) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+  background-size:38px 38px;
+  background-position:-1px -1px;
+  -webkit-font-smoothing:antialiased;
+}
+.shell{max-width:880px;margin:0 auto;padding:22px 16px 70px}
+
+/* header */
+.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+  border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:8px}
+.brand{display:flex;align-items:center;gap:11px}
+.logo{width:30px;height:30px;border:1px solid var(--teal);border-radius:4px;position:relative;flex:0 0 auto;
+  background:linear-gradient(135deg,rgba(40,182,166,.18),transparent)}
+.logo::before{content:"";position:absolute;inset:7px;border:1px solid var(--teal);border-radius:2px;opacity:.6}
+.logo::after{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;background:var(--teal);border-radius:1px}
+.brand h1{font-size:18px;font-weight:700;letter-spacing:.2px;margin:0;line-height:1}
+.brand .sub{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:4px}
+.tag{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--line);
+  padding:4px 8px;border-radius:3px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;
+  background:var(--surface)}
+.intro{color:var(--ink-dim);font-size:13.5px;margin:14px 2px 22px;max-width:640px}
+.intro b{color:var(--ink);font-weight:600}
+
+/* module panels */
+.module{background:var(--surface);border:1px solid var(--line);border-radius:7px;
+  margin-bottom:18px;position:relative;overflow:hidden;
+  opacity:0;transform:translateY(8px);animation:rise .5s cubic-bezier(.2,.7,.3,1) forwards}
+.module:nth-of-type(1){animation-delay:.05s}
+.module:nth-of-type(2){animation-delay:.16s}
+.module:nth-of-type(3){animation-delay:.27s}
+@keyframes rise{to{opacity:1;transform:none}}
+.module>.rail{position:absolute;left:0;top:0;bottom:0;width:3px}
+.m-source>.rail{background:var(--teal)}
+.m-form>.rail{background:var(--amber)}
+.m-rule>.rail{background:var(--orange)}
+.m-head{display:flex;align-items:center;gap:10px;padding:13px 16px 12px 18px;border-bottom:1px solid var(--line-soft)}
+.m-num{font-family:var(--mono);font-size:11px;color:var(--basalt);font-weight:700;
+  width:21px;height:21px;display:grid;place-items:center;border-radius:3px}
+.m-source .m-num{background:var(--teal)}
+.m-form .m-num{background:var(--amber)}
+.m-rule .m-num{background:var(--orange)}
+.m-title{font-weight:600;font-size:14.5px;letter-spacing:.2px}
+.m-kicker{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.4px;margin-left:auto}
+.m-body{padding:16px 18px}
+.hint{font-size:12.5px;color:var(--muted);margin:0 0 13px}
+.hint code{font-family:var(--mono);color:var(--ink-dim);font-size:11.5px}
+
+/* grid */
+.gridwrap{overflow-x:auto;border:1px solid var(--line-soft);border-radius:5px;background:var(--panel)}
+table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+table.grid th,table.grid td{border:1px solid var(--line-soft);padding:0;text-align:left;vertical-align:top}
+.colhead{padding:8px 10px 9px;background:var(--panel-2)}
+.colname{font-weight:600;font-size:12.5px;color:var(--ink);font-family:var(--mono);margin-bottom:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;padding:3px 7px;border-radius:3px;cursor:pointer;
+  border:1px solid transparent;user-select:none;transition:filter .15s}
+.chip:hover{filter:brightness(1.18)}
+.chip .dot{width:6px;height:6px;border-radius:50%}
+.t-text{background:rgba(125,134,143,.16);color:var(--ink-dim)} .t-text .dot{background:var(--muted)}
+.t-number{background:rgba(40,182,166,.15);color:var(--teal)} .t-number .dot{background:var(--teal)}
+.t-select{background:rgba(123,131,223,.16);color:var(--indigo)} .t-select .dot{background:var(--indigo)}
+.t-date{background:rgba(224,168,52,.15);color:var(--amber)} .t-date .dot{background:var(--amber)}
+.t-geo{background:rgba(82,176,106,.15);color:var(--green)} .t-geo .dot{background:var(--green)}
+.t-file{background:rgba(232,116,59,.15);color:var(--orange)} .t-file .dot{background:var(--orange)}
+table.grid td .cell{padding:7px 10px;outline:none;min-height:32px;font-family:var(--mono);font-size:12px;color:var(--ink-dim)}
+table.grid td .cell:focus{background:rgba(40,182,166,.08);color:var(--ink)}
+table.grid tr:hover td{background:rgba(255,255,255,.012)}
+.flagcol{text-align:center;width:1px;white-space:nowrap}
+.hg{display:inline-block;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.6px;
+  text-transform:uppercase;color:var(--green);border:1px solid rgba(82,176,106,.5);
+  background:rgba(82,176,106,.12);padding:2px 7px;border-radius:3px;animation:pop .3s ease}
+@keyframes pop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+.gridmeta{display:flex;justify-content:space-between;align-items:center;margin-top:9px;font-family:var(--mono);
+  font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+
+/* form */
+.form{display:grid;grid-template-columns:1fr 1fr;gap:13px 16px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1/-1}
+.field label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);
+  display:flex;align-items:center;gap:7px}
+.field label .ft{font-size:8.5px;opacity:.75}
+.inp{background:var(--panel);border:1px solid var(--line);border-radius:4px;color:var(--ink);
+  font-family:var(--sans);font-size:14px;padding:9px 10px;width:100%;transition:border-color .15s,box-shadow .15s}
+.inp:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(40,182,166,.13)}
+.inp.bad{border-color:var(--red);box-shadow:0 0 0 3px rgba(226,87,76,.13)}
+select.inp{appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 16px) 17px,calc(100% - 11px) 17px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:30px}
+.geo{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.err{font-size:11px;color:var(--red);font-family:var(--mono);min-height:14px;letter-spacing:.3px}
+.computed{font-family:var(--mono);font-size:14px;color:var(--teal);background:var(--panel);
+  border:1px dashed var(--line);border-radius:4px;padding:9px 10px}
+.formfoot{display:flex;align-items:center;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft);flex-wrap:wrap}
+.btn{font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+  border:1px solid var(--teal);color:var(--basalt);background:var(--teal);padding:9px 16px;border-radius:4px;cursor:pointer;
+  transition:filter .15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--ink-dim);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--ink-dim);filter:none}
+.livehg{margin-left:auto}
+
+/* rule / madlib */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin-bottom:14px}
+.seg button{font-family:var(--mono);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+  background:transparent;color:var(--muted);border:none;padding:7px 14px;cursor:pointer}
+.seg button.on{background:var(--orange);color:var(--basalt)}
+.madlib{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:15px;line-height:2.3}
+.madlib .lex{color:var(--ink-dim)}
+.mlsel,.mlinp{font-family:var(--mono);font-size:12.5px;background:var(--panel);border:1px solid var(--line);
+  color:var(--ink);border-radius:4px;padding:6px 9px}
+.mlsel{appearance:none;cursor:pointer;color:var(--amber);font-weight:700;padding-right:26px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 13px) 14px,calc(100% - 9px) 14px;background-size:4px,4px;background-repeat:no-repeat}
+.mlinp{width:84px;color:var(--green)}
+.mlsel:focus,.mlinp:focus{outline:none;border-color:var(--orange)}
+.readout{background:#0e1417;border:1px solid var(--line);border-radius:5px;padding:14px 16px;
+  font-family:var(--mono);font-size:13.5px;color:var(--green);position:relative;min-height:46px;display:flex;align-items:center;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.4)}
+.readout::before{content:"soft";position:absolute;top:-1px;right:10px;transform:translateY(-50%);
+  background:var(--basalt);font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:0 6px}
+.readout .kw{color:var(--orange)} .readout .str{color:var(--amber)} .readout .num{color:#7fd0ff} .readout .id{color:var(--ink)}
+.caret{display:inline-block;width:7px;height:15px;background:var(--green);margin-left:3px;animation:blink 1.1s step-end infinite;vertical-align:-2px}
+@keyframes blink{50%{opacity:0}}
+.rulenote{font-size:12px;color:var(--muted);margin-top:12px;display:flex;gap:8px;align-items:flex-start}
+.rulenote .b{color:var(--green);font-family:var(--mono);font-size:11px}
+
+/* footer */
+.foot{margin-top:26px;border-top:1px solid var(--line);padding-top:16px;
+  font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.foot .pip{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-dim);
+  border:1px solid var(--line);border-radius:3px;padding:3px 8px}
+.foot .no-llm{color:var(--green);border-color:rgba(82,176,106,.4)}
+
+@media(max-width:560px){
+  .form{grid-template-columns:1fr}
+  .madlib{line-height:2.6}
+  .brand h1{font-size:16px}
+  .intro{font-size:13px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="masthead">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>Works · data-app maker</h1>
+        <div class="sub">feel mock — not the engine</div>
+      </div>
+    </div>
+    <div class="tag">Quadrilátero sample log</div>
+  </div>
+
+  <p class="intro">Three stages, one source of truth. You never design a schema — you <b>show your data</b>, the form falls out, and a rule is a sentence you assemble. Edit anything; everything downstream reacts live. <b>No model in this loop.</b></p>
+
+  <!-- 01 SOURCE -->
+  <section class="module m-source">
+    <div class="rail"></div>
+    <div class="m-head">
+      <span class="m-num">01</span>
+      <span class="m-title">Start from data</span>
+      <span class="m-kicker">source</span>
+    </div>
+    <div class="m-body">
+      <p class="hint">Types are inferred from the values — tap a <code>TYPE</code> chip to override. Edit cells and watch the chips re-sniff.</p>
+      <div class="gridwrap">
+        <table class="grid" id="grid"></table>
+      </div>
+      <div class="gridmeta">
+        <span id="schemaLine"></span>
+        <span id="rowCount"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 FORM -->
+  <section class="module m-form">
+    <div class="rail"></div>
+    <div class="m-head">
+      <span class="m-num">02</span>
+      <span class="m-title">Your form, for free</span>
+      <span class="m-kicker">engine renders the tree</span>
+    </div>
+    <div class="m-body">
+      <p class="hint">The engine owns the hard parts — each field becomes the right widget. Fill it in; the rule from stage 03 evaluates as you type.</p>
+      <div class="form" id="form"></div>
+      <div class="formfoot">
+        <button class="btn" id="addRec">+ save record</button>
+        <button class="btn ghost" id="clearRec">clear</button>
+        <span class="livehg" id="liveHg"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 RULE -->
+  <section class="module m-rule">
+    <div class="rail"></div>
+    <div class="m-head">
+      <span class="m-num">03</span>
+      <span class="m-title">Add a rule — by sentence</span>
+      <span class="m-kicker">madlib ⇄ soft</span>
+    </div>
+    <div class="m-body">
+      <div class="seg" id="seg">
+        <button data-v="madlib" class="on">madlib</button>
+        <button data-v="soft">soft</button>
+      </div>
+
+      <div id="madlibView">
+        <div class="madlib" id="madlib"></div>
+      </div>
+
+      <div class="readout" id="readout"></div>
+
+      <div class="rulenote">
+        <span class="b">▸</span>
+        <span>The picker and the sentence are the <b style="color:var(--ink)">same artifact</b>, two views. Assemble it by choosing, or type the soft line freehand — both land on one canonical tree, and the form above reacts either way.</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span class="pip no-llm">no llm</span>
+    <span class="pip">idb · hot</span>
+    <span class="pip">comment · durable</span>
+    <span class="pip">trystero · sync</span>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:1px">GCU · Switchboard</span>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+/* ---------- seed: Quadrilátero Ferrífero sample log ---------- */
+const COLS_INIT = ["id","coords","lithology","fe_pct","sampled","photo"];
+let rows = [
+  {id:"QF-001", coords:"-20.243, -43.512", lithology:"itabirite",  fe_pct:"64.2", sampled:"2026-03-11", photo:"qf001.jpg"},
+  {id:"QF-002", coords:"-20.241, -43.514", lithology:"hematitite", fe_pct:"58.7", sampled:"2026-03-11", photo:"qf002.jpg"},
+  {id:"QF-003", coords:"-20.245, -43.510", lithology:"itabirite",  fe_pct:"41.3", sampled:"2026-03-12", photo:"qf003.jpg"},
+  {id:"QF-004", coords:"-20.239, -43.516", lithology:"canga",      fe_pct:"52.0", sampled:"2026-03-12", photo:"qf004.jpg"},
+  {id:"QF-005", coords:"-20.244, -43.511", lithology:"itabirite",  fe_pct:"67.9", sampled:"2026-03-13", photo:"qf005.jpg"},
+];
+const TYPES = ["text","number","select","date","geo","file"];
+let schema = [];          // [{name,type,options?}]
+let overrides = {};       // name -> forced type
+let draft = {};           // form draft record
+let rule = { kind:"flag", label:"high-grade", field:"fe_pct", op:"above", value:"60", value2:"100", newField:"net_fe", left:"fe_pct", arithOp:"times", right:"0.95" };
+let view = "madlib";
+
+/* ---------- deterministic inference (no LLM) ---------- */
+const reNum = /^-?\d+(\.\d+)?$/;
+const reDate = /^\d{4}-\d{2}-\d{2}$/;
+const reGeo = /^-?\d{1,3}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/;
+const reFile = /\.(jpe?g|png|gif|webp|pdf|heic)$/i;
+function inferType(name, vals){
+  if(overrides[name]) return overrides[name];
+  const v = vals.filter(x=>x!=null && String(x).trim()!=="");
+  if(!v.length) return "text";
+  const all = f => v.every(f);
+  if(/(^|_)(photo|image|img|file|attachment)($|_)/i.test(name) || all(x=>reFile.test(x))) return "file";
+  if(all(x=>reGeo.test(x)) || /coord|latlng|gps/i.test(name)) return "geo";
+  if(all(x=>reDate.test(x))) return "date";
+  if(all(x=>reNum.test(x))) return "number";
+  const uniq = [...new Set(v.map(String))];
+  if(uniq.length <= Math.max(2, v.length*0.6) && uniq.length < v.length && uniq.length<=12 && !/^id$/i.test(name)) return "select";
+  return "text";
+}
+function colValues(name){ return rows.map(r=>r[name]); }
+function buildSchema(){
+  schema = COLS().map(name=>{
+    const t = inferType(name, colValues(name));
+    const c = {name, type:t};
+    if(t==="select") c.options = [...new Set(colValues(name).map(String).filter(x=>x.trim()!==""))];
+    return c;
+  });
+}
+function COLS(){ return COLS_INIT; }
+
+/* ---------- render: grid ---------- */
+const elGrid = document.getElementById("grid");
+function renderGrid(){
+  const flagOn = rule.kind==="flag";
+  let head = "<thead><tr>";
+  schema.forEach(c=>{
+    head += `<th><div class="colhead">
+      <div class="colname">${c.name}</div>
+      <span class="chip t-${c.type}" data-col="${c.name}" title="tap to override type">
+        <span class="dot"></span>${c.type}</span>
+    </div></th>`;
+  });
+  if(flagOn) head += `<th class="colhead"><div class="colname">·</div></th>`;
+  head += "</tr></thead>";
+  let body = "<tbody>";
+  rows.forEach((r,ri)=>{
+    body += "<tr>";
+    schema.forEach(c=>{
+      body += `<td><div class="cell" contenteditable="true" data-row="${ri}" data-col="${c.name}">${escapeHtml(r[c.name]??"")}</div></td>`;
+    });
+    if(flagOn){
+      const hit = evalFlag(r);
+      body += `<td class="flagcol">${hit?`<span class="hg">${escapeHtml(rule.label||"flag")}</span>`:""}</td>`;
+    }
+    body += "</tr>";
+  });
+  body += "</tbody>";
+  elGrid.innerHTML = head + body;
+  document.getElementById("schemaLine").textContent =
+    schema.length + " fields · " + schema.map(c=>c.type).join(" / ");
+  document.getElementById("rowCount").textContent = rows.length + " records";
+}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));}
+
+/* grid interactions */
+elGrid.addEventListener("input", e=>{
+  const cell = e.target.closest(".cell"); if(!cell) return;
+  const ri=+cell.dataset.row, col=cell.dataset.col;
+  rows[ri][col] = cell.textContent;
+  // re-sniff just this column's chip, don't rebuild (keep focus)
+  const t = inferType(col, colValues(col));
+  const sc = schema.find(s=>s.name===col);
+  if(sc && sc.type!==t && !overrides[col]){ sc.type=t; if(t==="select") sc.options=[...new Set(colValues(col).map(String).filter(x=>x.trim()!==""))]; refreshChip(col,t); rebuildForm(); }
+  if(rule.kind==="flag"){ updateFlags(); }
+});
+function refreshChip(col,t){
+  const chip = elGrid.querySelector(`.chip[data-col="${col}"]`);
+  if(chip){ chip.className = "chip t-"+t; chip.dataset.col=col; chip.innerHTML='<span class="dot"></span>'+t; }
+}
+elGrid.addEventListener("click", e=>{
+  const chip = e.target.closest(".chip"); if(!chip) return;
+  const col = chip.dataset.col;
+  const cur = schema.find(s=>s.name===col).type;
+  const next = TYPES[(TYPES.indexOf(cur)+1)%TYPES.length];
+  overrides[col]=next;
+  const sc = schema.find(s=>s.name===col); sc.type=next;
+  if(next==="select") sc.options=[...new Set(colValues(col).map(String).filter(x=>x.trim()!==""))];
+  refreshChip(col,next);
+  rebuildForm(); renderRule(); renderGrid();
+});
+
+/* update only the flag column cells in place */
+function updateFlags(){
+  if(rule.kind!=="flag"){ renderGrid(); return; }
+  const trs = elGrid.querySelectorAll("tbody tr");
+  trs.forEach((tr,ri)=>{
+    let fc = tr.querySelector(".flagcol");
+    const hit = evalFlag(rows[ri]);
+    if(fc) fc.innerHTML = hit?`<span class="hg">${escapeHtml(rule.label||"flag")}</span>`:"";
+  });
+}
+
+/* ---------- render: form ---------- */
+const elForm = document.getElementById("form");
+function rebuildForm(){
+  elForm.innerHTML="";
+  schema.forEach(c=>{
+    const wrap=document.createElement("div");
+    wrap.className="field"+(c.type==="geo"||c.type==="file"?" full":"");
+    const lab=document.createElement("label");
+    lab.innerHTML=`${c.name} <span class="ft t-${c.type}" style="border:none;background:none;padding:0">· ${c.type}</span>`;
+    wrap.appendChild(lab);
+    let input;
+    if(c.type==="select"){
+      input=document.createElement("select"); input.className="inp";
+      input.innerHTML=`<option value="">—</option>`+(c.options||[]).map(o=>`<option>${escapeHtml(o)}</option>`).join("");
+    } else if(c.type==="geo"){
+      const g=document.createElement("div"); g.className="geo";
+      const a=mkInp("lat","number"), b=mkInp("lng","number");
+      a.oninput=b.oninput=()=>{ draft[c.name]=`${a.value}, ${b.value}`; };
+      g.append(a,b); wrap.appendChild(g);
+      wrap.appendChild(errSlot(c)); elForm.appendChild(wrap); return;
+    } else if(c.type==="file"){
+      input=document.createElement("input"); input.className="inp"; input.placeholder="📎 tap to attach (mock)"; input.readOnly=true;
+    } else if(c.type==="date"){
+      input=document.createElement("input"); input.className="inp"; input.type="date";
+    } else if(c.type==="number"){
+      input=document.createElement("input"); input.className="inp"; input.type="number"; input.placeholder="0";
+    } else {
+      input=document.createElement("input"); input.className="inp"; input.placeholder="…";
+    }
+    input.dataset.field=c.name;
+    input.addEventListener("input",()=>{ draft[c.name]=input.value; onDraftChange(); });
+    wrap.appendChild(input);
+    wrap.appendChild(errSlot(c));
+    elForm.appendChild(wrap);
+  });
+  // computed field display (when rule is compute)
+  if(rule.kind==="compute"){
+    const wrap=document.createElement("div"); wrap.className="field full";
+    wrap.innerHTML=`<label>${escapeHtml(rule.newField)} <span class="ft" style="border:none;background:none;padding:0;color:var(--teal)">· computed</span></label>`;
+    const out=document.createElement("div"); out.className="computed"; out.id="computedOut"; out.textContent="—";
+    wrap.appendChild(out); elForm.appendChild(wrap);
+  }
+  onDraftChange();
+}
+function mkInp(ph,type){const i=document.createElement("input");i.className="inp";i.placeholder=ph;if(type)i.type=type;return i;}
+function errSlot(c){const e=document.createElement("div");e.className="err";e.dataset.errfor=c.name;return e;}
+
+function onDraftChange(){
+  // validation (require rule)
+  clearErrors();
+  if(rule.kind==="require"){
+    const val = draft[rule.field];
+    const msg = evalRequire(val);
+    if(msg){ markBad(rule.field, msg); }
+  }
+  // live high-grade flag for the draft
+  const lh=document.getElementById("liveHg");
+  if(rule.kind==="flag" && evalFlag(draft)){ lh.innerHTML=`<span class="hg">${escapeHtml(rule.label||"flag")}</span>`; }
+  else lh.innerHTML="";
+  // computed
+  if(rule.kind==="compute"){
+    const out=document.getElementById("computedOut");
+    if(out){ const v=evalCompute(draft); out.textContent = v==null?"—":String(v); }
+  }
+}
+function clearErrors(){ elForm.querySelectorAll(".inp.bad").forEach(i=>i.classList.remove("bad")); elForm.querySelectorAll(".err").forEach(e=>e.textContent=""); }
+function markBad(field,msg){
+  const inp=elForm.querySelector(`[data-field="${field}"]`); if(inp)inp.classList.add("bad");
+  const er=elForm.querySelector(`[data-errfor="${field}"]`); if(er)er.textContent="✕ "+msg;
+}
+
+/* ---------- rule evaluation ---------- */
+function num(x){ const n=parseFloat(x); return isNaN(n)?null:n; }
+function evalFlag(rec){
+  const a=num(rec[rule.field]); if(a==null) return false;
+  const b=num(rule.value), c=num(rule.value2);
+  switch(rule.op){
+    case "above": return b!=null && a>b;
+    case "below": return b!=null && a<b;
+    case "equals": return b!=null && a===b;
+    case "between": return b!=null&&c!=null && a>=Math.min(b,c)&&a<=Math.max(b,c);
+  } return false;
+}
+function evalRequire(val){
+  const a=num(val); const b=num(rule.value), c=num(rule.value2);
+  if(val==null||String(val).trim()==="") return null; // empty = not yet entered
+  switch(rule.op){
+    case "above": return (b!=null&&a>b)?null:`must be above ${b}`;
+    case "below": return (b!=null&&a<b)?null:`must be below ${b}`;
+    case "equals": return (b!=null&&a===b)?null:`must equal ${b}`;
+    case "between": return (b!=null&&c!=null&&a>=Math.min(b,c)&&a<=Math.max(b,c))?null:`must be between ${b} and ${c}`;
+  } return null;
+}
+function evalCompute(rec){
+  const l=num(rec[rule.left]); if(l==null) return null;
+  const r=num(rule.right); if(r==null) return null;
+  let v;
+  switch(rule.arithOp){ case "times":v=l*r;break; case "plus":v=l+r;break; case "minus":v=l-r;break; case "over":v=r!==0?l/r:null;break; }
+  return v==null?null:Math.round(v*1000)/1000;
+}
+
+/* ---------- render: rule (madlib + soft) ---------- */
+const elMadlib=document.getElementById("madlib");
+const elReadout=document.getElementById("readout");
+function numericFields(){ return schema.filter(c=>c.type==="number").map(c=>c.name); }
+function fieldOpts(sel){ return schema.map(c=>`<option ${c.name===sel?"selected":""}>${c.name}</option>`).join(""); }
+function numFieldOpts(sel){ const f=numericFields(); if(!f.includes(sel)&&f.length)sel=f[0]; return f.map(n=>`<option ${n===sel?"selected":""}>${n}</option>`).join(""); }
+
+function renderRule(){
+  const lex = s=>`<span class="lex">${s}</span>`;
+  let html="";
+  html += `kind ${sel("kind",[["flag","flag a record"],["require","require"],["compute","compute"]],rule.kind)} `;
+  if(rule.kind==="flag"){
+    html += lex(" show flag ")+`<input class="mlinp" data-k="label" value="${escapeHtml(rule.label)}" style="width:120px;color:var(--amber)">`+
+            lex(" when ")+sel("field",fieldPairs(rule.field),rule.field,"num")+
+            " "+opSel(rule.op)+" "+valInputs();
+  } else if(rule.kind==="require"){
+    html += " "+sel("field",fieldPairs(rule.field),rule.field,"num")+lex(" must be ")+opSel(rule.op)+" "+valInputs();
+  } else {
+    html += lex(" set ")+`<input class="mlinp" data-k="newField" value="${escapeHtml(rule.newField)}" style="width:96px;color:var(--teal)">`+
+            lex(" to ")+sel("left",fieldPairs(rule.left),rule.left,"num")+" "+
+            sel("arithOp",[["times","×"],["plus","+"],["minus","−"],["over","÷"]],rule.arithOp)+
+            ` <input class="mlinp" data-k="right" value="${escapeHtml(rule.right)}">`;
+  }
+  elMadlib.innerHTML=html;
+  renderReadout();
+}
+function fieldPairs(sel){ return schema.map(c=>[c.name,c.name]); }
+function sel(key,pairs,cur,flavor){
+  return `<select class="mlsel" data-k="${key}">`+pairs.map(([v,l])=>`<option value="${v}" ${v===cur?"selected":""}>${l}</option>`).join("")+`</select>`;
+}
+function opSel(cur){ return sel("op",[["above","is above"],["below","is below"],["equals","equals"],["between","is between"]],cur); }
+function valInputs(){
+  if(rule.op==="between")
+    return `<input class="mlinp" data-k="value" value="${escapeHtml(rule.value)}"><span class="lex">and</span><input class="mlinp" data-k="value2" value="${escapeHtml(rule.value2)}">`;
+  return `<input class="mlinp" data-k="value" value="${escapeHtml(rule.value)}">`;
+}
+elMadlib.addEventListener("change",onRuleEdit);
+elMadlib.addEventListener("input",onRuleEdit);
+function onRuleEdit(e){
+  const t=e.target; const k=t.dataset.k; if(!k) return;
+  rule[k]=t.value;
+  if(k==="kind"||k==="op"){ renderRule(); } else { renderReadout(); }
+  rebuildForm(); updateFlags();
+}
+
+/* soft sentence generation — the same rule, as a soft line */
+function softLine(){
+  const kw=s=>`<span class="kw">${s}</span>`, str=s=>`<span class="str">"${escapeHtml(s)}"</span>`,
+        id=s=>`<span class="id">${escapeHtml(s)}</span>`, n=s=>`<span class="num">${escapeHtml(s)}</span>`;
+  const opWord={above:"is above",below:"is below",equals:"equals",between:"is between"}[rule.op];
+  if(rule.kind==="flag"){
+    let cond = `${id(rule.field)} ${kw(opWord)} ${n(rule.value)}`;
+    if(rule.op==="between") cond += ` ${kw("and")} ${n(rule.value2)}`;
+    return `${kw("show")} ${str(rule.label)} ${kw("when")} ${cond}`;
+  }
+  if(rule.kind==="require"){
+    let cond = `${id(rule.field)} ${kw("must be")} ${n(rule.value)}`;
+    if(rule.op==="above")cond=`${id(rule.field)} ${kw("must be above")} ${n(rule.value)}`;
+    if(rule.op==="below")cond=`${id(rule.field)} ${kw("must be below")} ${n(rule.value)}`;
+    if(rule.op==="equals")cond=`${id(rule.field)} ${kw("must equal")} ${n(rule.value)}`;
+    if(rule.op==="between")cond=`${id(rule.field)} ${kw("must be between")} ${n(rule.value)} ${kw("and")} ${n(rule.value2)}`;
+    return `${kw("keep")} ${cond}`;
+  }
+  const aw={times:"times",plus:"plus",minus:"minus",over:"over"}[rule.arithOp];
+  return `${kw("set")} ${id(rule.newField)} ${kw("to")} ${id(rule.left)} ${kw(aw)} ${n(rule.right)}`;
+}
+function renderReadout(){ elReadout.innerHTML = softLine()+`<span class="caret"></span>`; }
+
+/* segmented madlib/soft toggle */
+document.getElementById("seg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  view=b.dataset.v;
+  [...e.currentTarget.children].forEach(c=>c.classList.toggle("on",c===b));
+  document.getElementById("madlibView").style.display = view==="madlib"?"":"none";
+  elReadout.style.opacity = view==="soft"?"1":".62";
+  elReadout.style.fontSize = view==="soft"?"15px":"13.5px";
+});
+
+/* ---------- form footer actions ---------- */
+document.getElementById("addRec").addEventListener("click",()=>{
+  const rec={}; let any=false;
+  schema.forEach(c=>{ const v=draft[c.name]; rec[c.name]= (v==null?"":v); if(v!=null&&String(v).trim()!=="")any=true; });
+  if(!any) return;
+  rows.push(rec); draft={};
+  buildSchema(); renderGrid(); rebuildForm(); renderRule();
+  elForm.querySelectorAll(".inp").forEach(i=>{ if(i.type!=="date")i.value=""; });
+});
+document.getElementById("clearRec").addEventListener("click",()=>{
+  draft={}; elForm.querySelectorAll(".inp").forEach(i=>i.value=""); onDraftChange();
+});
+
+/* ---------- boot ---------- */
+buildSchema();
+renderGrid();
+rebuildForm();
+renderRule();
+elReadout.style.opacity=".62";
+</script>
+</body>
+</html>

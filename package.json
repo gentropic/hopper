@@ -1,0 +1,32 @@
+{
+  "name": "@gcu/hopper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A serverless, offline-first, single-file form / data-app system.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Arthur Endlein Correia",
+  "homepage": "https://gentropic.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gentropic/hopper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gentropic/hopper/issues"
+  },
+  "keywords": [
+    "forms",
+    "data-collection",
+    "offline-first",
+    "local-first",
+    "xlsform",
+    "odk",
+    "pwa",
+    "single-file",
+    "zero-dependency",
+    "geoscience"
+  ],
+  "scripts": {
+    "build": "echo \"nothing to build yet — see docs/SPEC-hopper.md \\u00a76\" && exit 0"
+  }
+}

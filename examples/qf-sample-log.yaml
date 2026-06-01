@@ -1,0 +1,72 @@
+type: "form"
+meta:
+  id: "qfsamp"
+  title: "QF Sample Log"
+  version: "2026-06-01"
+  lang: "en"
+  mode: "append"
+  tiers:
+    store: "idb"
+    durable: "comment"
+fields:
+  - name: "site_id"
+    fieldType: "text"
+    label: "Site ID"
+    props:
+      required: true
+  - name: "coords"
+    fieldType: "geo"
+    label: "Coordinates"
+    props:
+      capture-accuracy: 10
+  - name: "lithology"
+    fieldType: "select"
+    label: "Lithology"
+    props:
+      list: "litho"
+  - name: "fe_pct"
+    fieldType: "number"
+    label: "Fe %"
+    props: {}
+  - name: "resample"
+    fieldType: "select"
+    label: "Resample needed?"
+    props:
+      list: "yes_no"
+  - name: "resample_reason"
+    fieldType: "text"
+    label: "Why resample?"
+    props:
+      appearance: "multiline"
+  - name: "sampled"
+    fieldType: "date"
+    label: "Date sampled"
+    props: {}
+  - name: "thanks"
+    fieldType: "note"
+    label: "Logged. Obrigado."
+    props: {}
+choices:
+  litho:
+    - value: "itabirite"
+      label: "itabirite"
+    - value: "hematitite"
+      label: "hematitite"
+    - value: "canga"
+      label: "canga"
+    - value: "quartzite"
+      label: "quartzite"
+  yes_no:
+    - value: "yes"
+      label: "Yes"
+    - value: "no"
+      label: "No"
+rules:
+  - verb: "constrain"
+    target: "fe_pct"
+    expr: "fe_pct between 0 and 100"
+    message: "Must be between 0 and 100"
+  - verb: "relevant"
+    target: "resample_reason"
+    expr: "resample equals \"yes\""
+views: []
