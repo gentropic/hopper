@@ -50,6 +50,9 @@ path (shared raw-key encoding, cross-verified signatures) is pinned by
 **Re-pinning** is a deliberate, reviewed act: re-`npm pack` the new version, read
 the diff, replace the file, and update version + both hashes above.
 
+**Vendored so far:** `sideact.js`, `vfs.js` (both from `../auditable/ext/*` via
+`node tools/sync-vendor.mjs`), and `noble-ed25519.js` (pinned npm, §ed25519 below).
+
 Each file added here gets a row in `vendor-licenses.json` (to be created) with
 its license + source commit, mirroring `weir/vendor-licenses.json`.
 

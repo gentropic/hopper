@@ -20,8 +20,8 @@ const SIB = resolve(ROOT, '..');               // ../  (sibling GitHub checkouts
 //   npm pack @noble/ed25519@<ver> → copy package/index.js → vendor/noble-ed25519.js
 const MAP = [
   [resolve(SIB, 'auditable/ext/sideact/index.js'), 'sideact.js'],   // reactive signals + h/render
+  [resolve(SIB, 'auditable/ext/vfs/index.js'), 'vfs.js'],           // VFS + IDB/OPFS/Memory backends
   // [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],      // when the source tab / yaml parse lands
-  // [resolve(SIB, 'auditable/ext/vfs/...'),       'vfs.js'],       // when storage lands
   // [resolve(SIB, 'capsule/...'),                 'capsule.js'],   // standalone repo
 ];
 

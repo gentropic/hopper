@@ -10,7 +10,7 @@ const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.cla
 const opt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
 const fmt = (v) => (v == null ? '' : String(v));
 
-export function renderForm(form, mount) {
+export function renderForm(form, mount, onSave) {
   mount.replaceChildren();
   const formEl = el('form', 'hf-form');
   formEl.addEventListener('submit', (e) => e.preventDefault());
@@ -24,7 +24,13 @@ export function renderForm(form, mount) {
 
   const save = el('button', 'hf-save'); save.type = 'button'; save.textContent = 'Save record';
   const out = el('pre', 'hf-out');
-  save.addEventListener('click', () => { out.textContent = JSON.stringify(form.values(), null, 2); });
+  save.addEventListener('click', async () => {
+    if (!onSave) { out.textContent = JSON.stringify(form.values(), null, 2); return; }
+    save.disabled = true; out.textContent = 'saving…';
+    try { const rec = await onSave(form.values()); out.textContent = `saved ✓ ${rec.id}`; }
+    catch (e) { out.textContent = 'save failed: ' + e.message; }
+    finally { save.disabled = false; }
+  });
 
   mount.append(flagsBar, formEl, save, out);
   return { values: () => form.values() };

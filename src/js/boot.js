@@ -4,6 +4,8 @@
 
 import { createForm } from './renderer/state.js';
 import { renderForm } from './renderer/render.js';
+import { createStore } from './storage/store.js';
+import * as vfs from '../../vendor/vfs.js';
 
 const DEMO = {
   type: 'form',
@@ -33,18 +35,38 @@ const DEMO = {
   views: [],
 };
 
-function mount() {
+async function setup() {
   const app = document.getElementById('app');
   if (!app) return;
   app.replaceChildren();
   const main = document.createElement('main'); main.className = 'hf-app';
   const h1 = document.createElement('h1'); h1.textContent = DEMO.meta.title; main.append(h1);
+  const outbox = document.createElement('div'); outbox.className = 'hf-outbox'; main.append(outbox);
   const host = document.createElement('div'); main.append(host);
   app.append(main);
-  renderForm(createForm(DEMO), host);
+
+  const store = createStore(new vfs.IDBBackend({ name: 'hopper' }));
+  const id = await store.init({ name: 'collector' });
+  const formHash = await store.putForm(DEMO);
+
+  const refreshOutbox = async () => {
+    const recs = await store.listRecords();
+    outbox.textContent = `Outbox · ${recs.length} record${recs.length === 1 ? '' : 's'} · ${id.streamId.slice(0, 8)}…`;
+    outbox.dataset.count = String(recs.length);
+  };
+  await refreshOutbox();
+
+  // Save = sign the values into an immutable record and append it (the save boundary).
+  renderForm(createForm(DEMO), host, async (values) => {
+    const rec = await store.saveRecord({ form: formHash, values });
+    await refreshOutbox();
+    return rec;
+  });
 }
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
-document.addEventListener('DOMContentLoaded', mount);
+document.addEventListener('DOMContentLoaded', () => {
+  setup().catch((e) => { const a = document.getElementById('app'); if (a) a.textContent = 'init error: ' + e.message; });
+});

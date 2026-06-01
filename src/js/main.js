@@ -20,4 +20,6 @@ import './xlsform/index.js';     // → xlsformToTree, treeToXlsform (+ bridge) 
 import * as sideact from '../../vendor/sideact.js';  // reactive signals (namespace-wrapped)
 import './renderer/state.js';    // → createForm: tree → reactive engine
 import './renderer/render.js';   // → renderForm: engine → DOM
-import './boot.js';              // renders the demo form, registers the service worker
+import * as vfs from '../../vendor/vfs.js';  // VFS backends (namespace-wrapped)
+import './storage/store.js';     // → createStore: signed append-only record store
+import './boot.js';              // renders the demo form + save→store, registers the SW
