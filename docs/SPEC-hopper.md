@@ -7,6 +7,7 @@
 **Editor:** Arthur Endlein Correia
 **Last revised:** 2026-06-01
 **License:** spec CC0 · reference implementations MIT
+**Amended by:** `DECISIONS.md` + `SPEC-hopper-rules` + `SPEC-hopper-records` (post-handoff design session, 2026-06-01). Those are newer where they differ; §1, §3, §7, §8 are updated inline.
 
 ## Abstract
 
@@ -21,8 +22,9 @@ This document is the map. It does not re-specify the format (that is SPEC-hopper
 Three commitments distinguish it from both the ODK stack it descends from and the SaaS data tools it competes with:
 
 - **Single-file, browser-as-runtime, zero-server.** A Hopper artifact is HTML you can host anywhere or run from disk. The browser is the runtime; IndexedDB is the store; there is no backend to operate, pay for, or trust.
-- **The definition is data; the engine is the only code.** A form/data-app definition is the canonical tree (SPEC-hopper-form §8) — interpreted, never executed. The single imperative surface, rule expressions, is a restricted profile (pure expressions + data queries; no I/O, DOM, or events). A stranger's definition is as safe to open as a menu.
+- **The definition is data; the engine is the only code.** A form/data-app definition is the canonical tree (SPEC-hopper-form §8) — interpreted, never executed. The single imperative surface, rule expressions, is a **total** expression calculus (pure, within-record; no loops, recursion, I/O, DOM, or events — **SPEC-hopper-rules**). Totality *is* the security boundary: a stranger's definition is as safe to open as a menu.
 - **Owned, not rented.** Records belong to the device until sent. No record caps, no editor seats, no forced upgrades. GCU may offer a hosting *mirror* as a courtesy (transparently someone else's static host), but self-hosting is complete — export a zip, serve it yourself, nothing is withheld.
+- **Private by default.** The standard deployment uses infra the user already has — a local folder, any file-sync they trust, or peer-to-peer (DECISIONS §5). Records replicate as signed, content-addressed objects in a git-shaped repo (**SPEC-hopper-records**); public hosting is an explicit opt-in for open data, never a precondition.
 
 It descends from ODK and stays compatible with it: XLSForm is a first-class interchange format (SPEC-hopper-form §9), so Hopper is an on-ramp to and complement of the ODK ecosystem, not a rival to it.
 
@@ -51,7 +53,7 @@ Hopper is **n + 1 autonomous peers**, not a hub with clients.
 | **@gcu/hopper-xlsform** | XLSForm ↔ tree converter + bidirectional expression bridge | reference impl built & round-trip-tested |
 | **storage / sync** | IDB (hot) + comment-backed (durable); append-only records; tiered carriers (archive · QR/NFC/chirp direct · Trystero) | ✓ specified (SPEC-hopper-collector §4–5) |
 
-Shared dependencies it rides on: **@gcu/yaml** (source serialization), **sideact** (reactivity), **vfs** (persistence), **capsule** (transport), **switchboard** (design system), **SheetJS** (xlsx I/O), and **ggwave** (data-over-sound, the bundled sync fallback). The names *jig* and *mill* are interior signage, not separate products — the system is just Hopper (see naming note, §7).
+Shared dependencies it rides on: **@gcu/yaml** (source serialization), **sideact** (reactivity), **vfs** (persistence), **capsule** (transport), **switchboard** (design system), **SheetJS** (xlsx I/O), and **ggwave** (data-over-sound, the bundled sync fallback). The names *jig* and *mill* are interior signage, not separate products — the system is just Hopper (see naming note, §7). They are **surfaces, not apps**: the collector is the lean, single-author field surface, while *jig* (builder) and *mill* (assemble/query the record union) are sibling surfaces of one system sharing one repo format — runnable inside Works or as modes of the same deploy, never separate installs (DECISIONS §7).
 
 ---
 
@@ -94,7 +96,7 @@ Then, in order: **P2P sync** (Trystero) → **jig** (builder) → **mill** (anal
 
 ## 7. Open and parked decisions
 
-- **Rule-expression runtime (`soft` vs AIR vs purpose-built).** *Parked* — a build-time detail. The prototype's small hand evaluator suffices for now; the syntactic XLSForm bridge is already independent of this choice. Current lean: `soft` is most naturally the **query language for the mill**, and the rule layer may want something lighter. Decide at build time against the real `soft`/`AIR` APIs.
+- **Rule-expression runtime.** *Resolved* (was: `soft` vs AIR vs purpose-built). The rule layer is a **purpose-built total expression calculus** — **not** `soft` — specified in **SPEC-hopper-rules**: symbolic, XLSForm-anchored, parsed to an AST and evaluated on the reactive DAG (`@gcu/sideact`). `soft`/AIR are reserved for the later **mill** query layer, where computation over the record union actually wants them.
 - **Mutable data-app merge.** When the editable (non-append) data-app is built, choose field-level LWW or a CRDT. Not needed for the collector.
 - **Relational scope.** v1 is flat + simple `ref`. A query engine / joins are revisited only when a real need appears.
 - **Central / aggregation console.** Aggregation-by-convention is decided; the console's concrete design is a mill-era question.
@@ -111,6 +113,9 @@ The handoff set:
 - **SPEC-hopper** (this doc) — architecture, invariants, build order.
 - **SPEC-hopper-form** — the format contract the renderer and converters target.
 - **SPEC-hopper-collector** — the collector app contract: shell, records/storage, and the full sync carrier model.
+- **SPEC-hopper-rules** — the rule-expression language: a total expression calculus (closes the §7 runtime question).
+- **SPEC-hopper-records** — the signed object model: record envelope, per-stream append-only logs, content-addressing, the conflict-free union.
+- **DECISIONS** — post-handoff design resolutions amending this set (durability, git-shaped sync, private-by-default, surfaces-not-apps).
 - **Reference implementations** — `hopper-renderer` (tree → live form + reactive rules), `@gcu/hopper-xlsform` (tested XLSForm↔tree converter).
 - **UX references** — `hopper.html` (collector shell), `works-dataapp-mock` (builder feel).
 - **Forthcoming** — SPEC-hopper-jig, then SPEC-hopper-mill, written as each design firms up.

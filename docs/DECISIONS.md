@@ -400,7 +400,9 @@ These are decided-by-building, not by more discussion:
 
 ## 11. What graduates where (promotion map)
 
-When these are promoted from this doc into the normative specs:
+**Promotion applied 2026-06-01.** The handoff specs now carry amendment banners
+and inline updates for the items below; `SPEC-hopper-rules` and
+`SPEC-hopper-records` are drafted. The map records where each landed:
 
 | Decision | Lands in |
 |---|---|
@@ -411,8 +413,8 @@ When these are promoted from this doc into the normative specs:
 | §7 surfaces-not-apps; collector lean / mill sibling | **SPEC-hopper** §3 (component map) + collector §2 |
 | §9 seams (time, privacy, flat-forms, served-not-file) | scattered: collector §4/§6, form §12, hopper §5 |
 
-Until promoted, the three handoff specs remain the contract; this doc is the
-newer intent.
+The handoff specs and the two new specs are now mutually consistent; this doc
+remains the **rationale-of-record** for *why* each call was made.
 
 ---
 

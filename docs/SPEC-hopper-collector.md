@@ -6,6 +6,7 @@
 **Editor:** Arthur Endlein Correia
 **Last revised:** 2026-06-01
 **License:** spec CC0 · reference implementation MIT
+**Amended by:** `SPEC-hopper-records` (the object model, §4–5) + `DECISIONS.md` (durability §1, git-shaped sync §2–4, private-by-default §5, surfaces-not-apps §7). Newer where they differ; §2, §4, §5, §6 are updated inline.
 
 ## Abstract
 
@@ -38,6 +39,8 @@ The renderer never cares which; it receives a tree.
 
 Three destinations, nothing more: **Forms · Outbox · Settings**.
 
+**The collector is the lean, single-author field surface** (DECISIONS §7). Its job is *get **your** records safe off this device* — fill, queue, send, and see your own durability. Assembling and querying *everyone's* records (the union) is the **mill**, a sibling surface of the same system sharing one repo format (SPEC-hopper-records) — runnable in Works or as a mode of the same deploy, never a second app, and never bloating the reliability-critical collector with whole-project storage. v1's collector may browse **your own** submitted records; the full union is the mill's.
+
 **Why three.** The frequent actions are *fill* and *send*; adding a form is rare and operator-ish. The mock learned this the hard way — an earlier build put a large persistent "Add form" button as a co-equal nav slot, which over-weighted an infrequent action and shouted an accent permanently (against Switchboard's "accents are events, not ambience"). Add is therefore a restrained row at the top of the **Forms** list (the + glyph is the only accent), and the nav carries only real destinations.
 
 - **Forms** — the loaded forms, each showing pending-record count; a quiet "+ add form" row opens the source sheet (§1).
@@ -59,7 +62,7 @@ Each collector has a **name** (human, e.g. the surveyor) and a **device id** (st
 
 ### 4.1 Append-only records
 
-Collection is `mode: "append"` (SPEC-hopper-form §5). A saved record is **immutable**, carries a **stable id** (`device-id + monotonic counter`, or equivalent), the form id, the collector identity, and a timestamp.
+Collection is `mode: "append"` (SPEC-hopper-form §5). A saved record is an **immutable, Ed25519-signed envelope** in a **per-stream append-only log** — stable id `<stream-id>/<counter>` (stream-id = hash of pubkey + device-id + install-epoch), naming the **form-version hash** it was collected against, its `values`, attachment references, and a best-effort timestamp (ordering is the per-stream counter, never the clock — DECISIONS §9). The full object model — envelope, content-addressing, corrections/tombstones, the conflict-free union — is **SPEC-hopper-records**.
 
 **Why append-only.** Immutability makes sync a conflict-free union (§5) and aggregation trivial (no merge, no last-writer arbitration, no central authority needed for correctness). It also matches field reality: a sample logged is a fact, not a mutable cell. (An *editable* data-app mode — mutable records, field-level merge — is a separate, later problem; SPEC-hopper §6/§7.)
 
@@ -72,6 +75,8 @@ Two tiers, declared in the form's `meta.tiers`:
 
 **The durability footgun, and the rule.** Durable lags hot — a snapshot is only as fresh as its last write. The invariant is therefore **never single-copy**: sync early, and on first use prompt **install + `persist()`**. An installed PWA with persistent storage granted reaches app-tier durability on Android; the only remaining loss path is the user explicitly clearing data. This is also the honest seam: Hopper collection is *at least as fine as ODK* once installed+persisted, and *less guaranteed than ODK before that* — which is exactly what the Settings readout exists to make visible.
 
+**The durability mechanism** (the headline concern — DECISIONS §1). No browser storage is a hard guarantee, so the real floor is an **automatic off-device copy**: auto-export / auto-push the repo objects every N records or every save, so the user never has to *remember*. On-device, `persist()` **+ install** is the eviction lever (it covers IndexedDB and OPFS alike); **OPFS** additionally holds MB-scale attachment blobs and gives flushed, predictable writes (`createSyncAccessHandle`). The readout (§4.3) carries a loud, un-dismissable indicator when records exist in only one place — *values* single-copy is the loudest alarm, since the measurement is irreplaceable where a photo is more recoverable (DECISIONS §8).
+
 ### 4.3 The storage readout
 
 Settings surfaces, plainly: whether persistent storage is **granted** (green) or best-effort (amber), bytes used, record count, and actions to **export all** and **clear sent**. This is a trust instrument — a field worker should be able to see, at a glance, that today's records are safe.
@@ -83,6 +88,8 @@ Settings surfaces, plainly: whether persistent storage is **granted** (green) or
 Records leave the device opt-in and append-only, by whatever channel is available — from a file handed over later to a live peer link. Every path shares one merge rule and one principle.
 
 **Union merge.** Because records are immutable with stable ids (§4.1), merging two peers is set-union keyed by id: push what they lack, pull what you lack, no conflicts possible. A central holds **copies** for cross-app query (SPEC-hopper §2) — the aggregation point by convention, never the system-of-record, so a collector is complete and correct alone. **Flow is opt-in**: a collector replicates when asked, the central pushes form/registry updates back (§1), nothing syncs silently.
+
+**The union is a grow-only set of signed, content-addressed objects** (SPEC-hopper-records §6): merge is set-union *by address*, conflict-free over every carrier — git, WebRTC, **and** naïve folder-sync (Dropbox/iCloud/Syncthing) alike, since no two writers ever touch the same file. A "central" is just a peer pushed-to by convention; git is an optional *host*, never a runtime dependency (DECISIONS §3). Sync runs in **two lanes, values-first** (DECISIONS §8): tiny record values sync over any carrier (down to chirp — §5.4); MB attachment blobs wait for fat pipes and bind by hash, so a record renders "📷 pending" until its photo catches up. Sync state is therefore *compound* per record (values × attachments) and surfaced plainly — "send all values now" completes independent of the photo backlog.
 
 ### 5.1 Why a live link needs an out-of-band carrier
 
@@ -137,6 +144,8 @@ The collector ships as a **boring served PWA**: one HTML file, a web manifest, a
 **Why boring, not `dd`.** The `dd` container runtime (the 404-PWA-factory lineage) is clever — multi-app images, scoped service workers — and it is the right tool for a genuine multi-app factory. For a *reliability-critical collector*, that cleverness is fragility we do not want; one plain installed PWA is the most robust substrate, and the collector is the wrong place to spend novelty. `dd` stays reserved for the factory case.
 
 **BYO-infra is first-class.** Export a zip, host it on GitHub Pages, Cloudflare, Netlify, or a phone's Termux — the app is complete with no hidden server. GCU may run a hosting *mirror* as a convenience, transparently someone else's static host; it withholds nothing. A repo template and instructions ship with the app so self-hosting is a copy-paste, not a project.
+
+**Private by default** (DECISIONS §5). The standard deployment uses infra the user already has: a local folder, any file-sync they trust (Dropbox/iCloud/Syncthing — conflict-free because each device writes only its own immutable files), or peer-to-peer. **Public hosting is an explicit opt-in** for open data, never a precondition. A `gentropic.org` GitHub-Pages deploy is a *static host* that satisfies the secure-context and (future) OAuth-redirect-origin requirements with **no server**; a future Dropbox/Drive *API* integration is feasible client-side as a `@gcu/vfs` backend — no server, no client secret (PKCE) — a regret-free opt-in, never a dependency.
 
 **Secure context required.** Camera, microphone, and geolocation need HTTPS or an installed PWA; `file://` blocks exactly the device-dependent questions. So real deployments are served or installed, never loose files — which also aligns with the install+persist durability path (§4.2).
 

@@ -8,6 +8,7 @@
 **Editor:** Arthur Endlein Correia
 **Last revised:** 2026-06-01
 **License:** spec CC0 · reference implementation MIT
+**Amended by:** `SPEC-hopper-rules` (the rule layer — supersedes §6's "restricted `soft`" framing) + `DECISIONS.md`. Newer where they differ.
 
 ## Abstract
 
@@ -16,7 +17,7 @@
 It shares three load-bearing properties with the rest of the GCU stack:
 
 1. **Authored by people *or* machines, tuned for both.** A model emits the tree as JSON; a human reads and edits it as `@gcu/yaml` (comments, quoted scalars, clean diffs). The parser is strict with line-numbered errors; *semantic* tolerance — an unknown field type or rule verb degrades to a fallback widget or a skipped rule with a warning — lives in the engine, not the syntax.
-2. **The definition is the security boundary.** A definition is *data*, interpreted by one curated engine. No third-party code runs. The only imperative surface — rule expressions — is a **restricted `soft` profile** (pure expressions and data queries; no I/O, no DOM, no events). A stranger's definition resolves as safely as a menu.
+2. **The definition is the security boundary.** A definition is *data*, interpreted by one curated engine. No third-party code runs. The only imperative surface — rule expressions — is a **total expression calculus** (pure, within-record; no loops, recursion, I/O, DOM, or events — SPEC-hopper-rules). Totality is the boundary: a stranger's definition resolves as safely as a menu.
 3. **Disposition: small, owned, durable.** A definition is a small text document; the records it collects belong to the device until sent.
 
 Where `arcr` (SPEC-arcr) describes a game as objects + event→action, `hopper` describes a data app as fields + event→rule — the same declarative-tree philosophy, swapped nouns.
@@ -117,9 +118,11 @@ Absent tiers default to `store: "idb"` + `durable: "comment"`. `mode: "append"` 
 
 ---
 
-## 6. Rules — the logic layer (restricted `soft`)
+## 6. Rules — the logic layer
 
-Each rule is an entry in the tree's `rules` array — `{verb, target, expr}`, or `{verb, label, expr}` for `show`. The `expr` is a string in a **restricted `soft` profile**: pure expressions and `soft` data-query verbs only — no `load`/`save`, no `make` (DOM), no `on` (events), no side-effecting closures. `${field}` or a bare field name reads another field. This is the security boundary.
+Each rule is an entry in the tree's `rules` array — `{verb, target, expr}`, or `{verb, label, expr}` for `show` (a `constrain` rule may add `message`). The `expr` is written in the **rule-expression language — a small, *total*, pure expression calculus over the fields of the same record**, specified normatively in **SPEC-hopper-rules**. Totality (no loops, recursion, I/O, DOM, events, or cross-record queries) *is* the security boundary; `${field}` or a bare field name reads another field of the record.
+
+> This supersedes the earlier "restricted `soft` profile" framing. The rule layer is **not** `soft` and performs **no** cross-record data-queries — those belong to the later mill (§11). `soft`/AIR are the mill's, not the collector's (DECISIONS §6).
 
 | verb        | target   | expr is…                | XLSForm column        |
 |-------------|----------|-------------------------|-----------------------|
@@ -130,9 +133,9 @@ Each rule is an entry in the tree's `rules` array — `{verb, target, expr}`, or
 | `calculate` | field    | value — compute into a `calc` field | `calculation`     |
 | `filter`    | field    | choice-filter expr (cascading selects; v0: simple) | `choice_filter` |
 
-The expression vocabulary is `soft`'s expression + data-query subset: comparisons (`is above`, `below`, `between … and …`, `equals`, `contains`, `matches`), arithmetic (`plus`/`times`/…), boolean (`and`/`or`/`not`), and the query verbs (`keep … where`, `count`, `total`, etc.) for choice filters and aggregates. **Implementation: transpile the expr to `soft`/AIR and evaluate on the reactive DAG** — `relevant`/`calculate` are exactly a dependency graph, so they ride the existing engine; no separate interpreter.
+**Syntax (XLSForm-anchored, not `soft`).** Symbolic comparisons and arithmetic (`< > <= >= = != + - * /`), word booleans (`and`/`or`/`not`), and keyword sugar where no clean symbol exists (`between … and …`, `contains`, `is blank`/`is filled`, `matches`). This makes the XLSForm bridge (§9) near-identity. The full grammar, the blank/relevance/validity semantics, and the reactive-DAG implementation (`relevant`/`calculate` *are* a dependency graph, so they ride the engine — no separate interpreter) are all in **SPEC-hopper-rules**.
 
-**Madlib ⇄ soft.** Because `soft` is canonical (one preferred form per operation), each rule is a fill-in-the-blank template the builder renders as pickers (field ▾ / operator ▾ / value), and the freehand `soft` line is the same artifact. Both lower to the same node.
+**Madlib ⇄ line.** Each rule is a fill-in-the-blank the builder renders as pickers (field ▾ / operator ▾ / value); the hand-typed line is the same artifact, lowering to the same node. A picker's human label ("is greater than") is UI; the serialized form is the symbol (`>`).
 
 ---
 
@@ -216,17 +219,17 @@ Each answer writes a sparse override onto the inferred tree; re-importing a chan
 
 ## 11. Analysis (the "mill") — sketch, deferred
 
-Out of scope for v1 beyond this sketch. Because collection is `mode: "append"`, analysis operates on the **union of immutable records** (the device's own plus any synced/aggregated copies), so it needs no conflict resolution. The intended surface is the same restricted `soft` data-query layer — `take from <form> keep where … group by … total/count … sort …` — producing tables, summaries, and simple charts, with the QF/Quadrilátero example yielding e.g. grade distributions by lithology. Full design (cross-form joins, the cross-app aggregation-by-convention console, report export) is a later spec. v1 ships collection; the mill follows.
+Out of scope for v1 beyond this sketch. Because collection is `mode: "append"`, analysis operates on the **union of immutable records** (the device's own plus any synced/aggregated copies), so it needs no conflict resolution. The intended surface is a **`soft` data-query layer** (where `soft` belongs — the mill, *not* the rule layer; SPEC-hopper-rules, DECISIONS §6) — `take from <form> keep where … group by … total/count … sort …` — producing tables, summaries, and simple charts, with the QF/Quadrilátero example yielding e.g. grade distributions by lithology. Full design (cross-form joins, the cross-app aggregation-by-convention console, report export) is a later spec. v1 ships collection; the mill follows.
 
 ---
 
 ## 12. Scope (v1)
 
-**In:** the flat field types (§4); rules via restricted `soft` (§6); inline + Sheet choices (§7); auto-form + sparse view annotations; the declared storage/sync tiers (§5); `mode: "append"` collection with immutable records (stable id, union merge — conflict-free); XLSForm import/export of the supported subset (§9); schema-from-example authoring with the seam interview (§10); deployment as a boring served PWA (definitions added by URL / xlsx / capsule / project registry).
+**In:** the flat field types (§4); rules via the total expression calculus (§6, SPEC-hopper-rules); inline + Sheet choices (§7); auto-form + sparse view annotations; the declared storage/sync tiers (§5); `mode: "append"` collection with immutable records (stable id, union merge — conflict-free); XLSForm import/export of the supported subset (§9); schema-from-example authoring with the seam interview (§10); deployment as a boring served PWA (definitions added by URL / xlsx / capsule / project registry).
 
 **Out / deferred:** repeats and nested groups; external/file-backed itemsets; a relational query engine and cross-entity joins (v0 is flat + simple `ref`); the mutable (non-append) data-app merge model (field-level LWW or CRDT — decide when the editable data-app, not the collector, is built); encryption; the analysis mill (§11); the dd multi-app factory (boring served PWA is the default substrate).
 
-**The bounded new component** is the §6 expression transpiler+profile; everything else is parse, map, render, and persist over machinery that already exists in the stack.
+**The bounded new component** is the §6 rule calculus — now specified as a *total expression language* (SPEC-hopper-rules): a parser + AST evaluated on the reactive DAG, **not** a `soft` transpiler. Everything else is parse, map, render, and persist over machinery that already exists in the stack.
 
 ---
 
