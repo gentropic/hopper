@@ -33,4 +33,6 @@ test('deps — free field references for the reactive DAG', () => {
   assert.deepEqual(deps('fe_pct > 60 and lithology = "itabirite"').sort(), ['fe_pct', 'lithology']);
   assert.deepEqual(deps('(a + b) * 2').sort(), ['a', 'b']);
   assert.deepEqual(deps('site_id is filled').sort(), ['site_id']);
+  assert.deepEqual(deps('total(samples.fe_pct)').sort(), ['samples']);    // agg depends on the repeat
+  assert.deepEqual(deps('count(samples) > min_n').sort(), ['min_n', 'samples']);
 });

@@ -28,6 +28,20 @@
     { "note": "§3.3 — arithmetic precedence (* before +)", "verb": "calculate",
       "expr": "a + b * 2", "values": { "a": 1, "b": 3 }, "expected": 7 },
     { "note": "§3.3 — parens override precedence", "verb": "calculate",
-      "expr": "(a + b) * 2", "values": { "a": 1, "b": 3 }, "expected": 8 }
+      "expr": "(a + b) * 2", "values": { "a": 1, "b": 3 }, "expected": 8 },
+
+    { "note": "§3.4 — count over a repeat's instances", "verb": "calculate",
+      "expr": "count(samples)", "values": { "samples": [{}, {}, {}] }, "expected": 3 },
+    { "note": "§3.4 — count of an absent repeat is 0", "verb": "calculate",
+      "expr": "count(samples)", "values": {}, "expected": 0 },
+    { "note": "§3.4 — total over a repeat field", "verb": "calculate",
+      "expr": "total(samples.fe_pct)", "values": { "samples": [{ "fe_pct": 60 }, { "fe_pct": 40 }] }, "expected": 100 },
+    { "note": "§3.4 — max / min / mean over a repeat field", "verb": "calculate",
+      "expr": "max(samples.fe_pct)", "values": { "samples": [{ "fe_pct": 60 }, { "fe_pct": 40 }] }, "expected": 60 },
+    { "verb": "calculate", "expr": "min(samples.fe_pct)", "values": { "samples": [{ "fe_pct": 60 }, { "fe_pct": 40 }] }, "expected": 40 },
+    { "verb": "calculate", "expr": "mean(samples.fe_pct)", "values": { "samples": [{ "fe_pct": 60 }, { "fe_pct": 40 }] }, "expected": 50 },
+    { "note": "§3.4 — max of an empty repeat is blank", "verb": "calculate",
+      "expr": "max(samples.fe_pct)", "values": { "samples": [] }, "expected": null },
+    { "note": "§3.4 — aggregate inside a boolean expr", "expr": "count(samples) > 0", "values": { "samples": [{}] }, "expected": true }
   ]
 }

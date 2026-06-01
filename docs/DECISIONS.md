@@ -376,9 +376,9 @@ supersede-able), so it is decided **now**.
   best-effort metadata for the analyst, never something correctness leans on.
 - **Attachments-pending** — a record can be live and useful with its media still
   en route (§8); surface it, never silently.
-- **Flat forms only (v1)** — no repeats, no nested groups. "Covers essentially
-  the whole XLSForm palette" is true of *widgets*, not *structure*; say "flat
-  forms only" plainly.
+- **~~Flat forms only (v1)~~ — REVERSED by §12.** Originally a seam (no repeats,
+  no nested groups, on the "widgets-not-structure" honesty point). Repeats +
+  nested groups were since **hoisted into v1** (hierarchical tree) — see §12.
 - **Served/installed, not `file://`** — durability (install+persist) and capture
   (secure context for camera/GPS) both push serious use to a served PWA. The
   honest pitch is "a single artifact you can host trivially," not "double-click a
@@ -415,6 +415,57 @@ and inline updates for the items below; `SPEC-hopper-rules` and
 
 The handoff specs and the two new specs are now mutually consistent; this doc
 remains the **rationale-of-record** for *why* each call was made.
+
+---
+
+## 12. Repeats + nested groups → v1; the tree goes hierarchical
+
+**Decision (reverses the "flat forms only" seam, §9).** Hoist **repeats**
+(`begin_repeat`) and **nested groups** into v1. The §8 tree becomes genuinely
+**hierarchical**: a `fields` node is a leaf field or a container (`group` /
+`repeat`) carrying `children`.
+
+**Why.** Repeats are bread-and-butter for the geoscience domain (log each sample
+/ fracture / drill interval); a flat-only tool both misses that and weakens the
+ODK on-ramp (many real ODK forms use repeats). Nested groups are cheap
+(presentational). Deciding *before* the renderer is built makes it a
+from-the-start design rather than a retrofit — the main reason to settle it now.
+
+**What it costs — and doesn't.**
+- **Storage / envelope: free.** A repeat is `values.<name> = [{…}, …]` — nested
+  JSON the JCS canonicalizer and envelope already serialize. No records change.
+- **Nested groups: presentational only.** Names stay form-unique, so grouped
+  fields keep flat `values`; a group renders **collapsible**. No data-model cost.
+- **Tree: hierarchical** (form §4/§8) — the foundational change.
+- **Rule language: per-instance scoping + within-record aggregates.** A rule
+  inside a repeat evaluates per-instance; `count`/`total`/`max`/`min`/`mean`
+  aggregate over its instances. Over a finite in-record collection these stay
+  **total** — they fit the security boundary; they add function-call grammar
+  (SPEC-hopper-rules §3.4, §4.7).
+- **Renderer: recursive walk, collapsible groups, add/remove instances, reactive
+  aggregates.**
+- **Bridge: structural `begin_group`/`begin_repeat` mapping + common aggregate
+  XPath (`sum`/`count`); exotic node-set XPath (`indexed-repeat`, `position(..)`)
+  warns** (the standard three-tier policy).
+
+**Staging (so "repeats in v1" doesn't balloon).** The *structure* (hierarchical
+tree, recursive renderer, per-instance scoping) is v1. **Aggregate sophistication
+is minimal** — `count`/`total`/`max`/`min`/`mean` over a repeat — with
+richer/filtered aggregates a fast-follow. Delivers the 90% case ("log N samples;
+show the count; total the assays") without the hard tail.
+
+**Roadmap hygiene (two honest buckets for what stays out).**
+*Deferred-but-wanted:* grid/pages styling, data preloading / `pulldata`, external
+file-backed itemsets, multi-level cascading filters, richer/filtered repeat
+aggregates. *Different model (not a gap):* `public_key` submission encryption —
+we have signed records + optional object-level encryption-at-rest; warn on
+import, don't chase.
+
+**Extensions confirmed.** Hopper-native features live in the tree and ride
+through XLSForm in **Hopper-namespaced columns ODK ignores** (`hopper::…`) — so
+they survive round-trips through Excel/ODK tooling untouched, additive and
+gracefully degrading, never corrupting another consumer's form. `show` is the
+precedent; v1 keeps extensions minimal (`show` + existing geo params).
 
 ---
 

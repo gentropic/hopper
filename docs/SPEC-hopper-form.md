@@ -96,6 +96,15 @@ Each field is an entry in the tree's `fields` array — `{name, fieldType, label
 | `hidden`        | stored constant, no UI                                 | `hidden`                |
 | `ref(entity)`   | reference to a record of another entity (v0: simple)   | *(extension)*           |
 
+**Containers (v1).** A node in `fields` is either a leaf field (above) or a **container** carrying a `children` array — the tree is hierarchical (§8):
+
+| type     | input / meaning                                                  | XLSForm (§9)                |
+|----------|-----------------------------------------------------------------|-----------------------------|
+| `group`  | presentational section; **may nest**; renders **collapsible**; no value of its own (children keep flat, form-unique names) | `begin_group` / `end_group` |
+| `repeat` | a repeating block; `children` collect an **array of instances** into `values.<name>` | `begin_repeat` / `end_repeat` |
+
+Nested `group`s add no data-model cost (names stay form-unique, values stay flat). A `repeat`'s children form per-instance sub-records; rules inside it evaluate per-instance, and `count`/`total`/`max`/`min` aggregate over its instances (SPEC-hopper-rules; DECISIONS §12).
+
 Common props (in `props`): `required` (bool, or a message string), `default`, `hint`, `appearance`, `readonly`, and `label::<lang>` for translations. Type-specific params ride in `props` too (e.g. `"capture-accuracy": 10` on `geo`; `int: true` on `number` for integer-only).
 
 Metadata auto-fields are declared like any field with reserved types: `now`, `deviceid`, `username`, `start`, `end` (captured by the engine, no UI).
@@ -114,7 +123,7 @@ Form-level settings and the **declared storage/sync tiers** live in `meta` (comp
 | `tiers.sync: "trystero"`   | P2P replication, no signalling server                             |
 | `config: "sheet:<url>"`    | pull reference/choice tables from a published Sheet (cached; degrades to embedded defaults offline) |
 
-Absent tiers default to `store: "idb"` + `durable: "comment"`. `mode: "append"` is the default for forms (collection); set it otherwise for an editable data app (mutable; the merge model is deferred — §12). UI grouping is a `group` annotation on fields (v0: flat; nesting deferred).
+Absent tiers default to `store: "idb"` + `durable: "comment"`. `mode: "append"` is the default for forms (collection); set it otherwise for an editable data app (mutable; the merge model is deferred — §12). UI grouping is a `group` **container** in the hierarchical tree (§4, §8) — it may nest and renders collapsible.
 
 ---
 
@@ -161,7 +170,7 @@ choices:
 
 ## 8. Canonical tree
 
-The serializations (§3) are surfaces over this normalized tree — the contract the renderer, the builder, and the XLSForm serializer all target:
+The serializations (§3) are surfaces over this normalized **hierarchical** tree — the contract the renderer, the builder, and the XLSForm serializer all target. A `fields` entry is a leaf field or a **container** (`group`/`repeat`) carrying its own `children`:
 
 ```json
 {
@@ -171,16 +180,26 @@ The serializations (§3) are surfaces over this normalized tree — the contract
             "tiers": { "store": "idb", "durable": "comment", "sync": "trystero" } },
   "fields": [
     { "name": "site_id", "fieldType": "text", "label": "Site ID", "props": { "required": true } },
-    { "name": "fe_pct",  "fieldType": "number", "label": "Fe %", "props": {} }
+    { "name": "samples", "fieldType": "repeat", "label": "Samples", "props": {}, "children": [
+      { "name": "lithology", "fieldType": "select", "label": "Lithology", "props": { "list": "litho" } },
+      { "name": "fe_pct",    "fieldType": "number", "label": "Fe %", "props": {} }
+    ] }
   ],
   "choices": { "litho": [ { "value": "itabirite", "label": "itabirite" } ] },
   "rules": [
     { "verb": "constrain", "target": "fe_pct", "expr": "fe_pct between 0 and 100" },
-    { "verb": "show", "label": "high-grade", "expr": "fe_pct is above 60" }
+    { "verb": "show", "label": "high-grade", "expr": "fe_pct > 60" },
+    { "verb": "calculate", "target": "n_samples", "expr": "count(samples)" }
   ],
   "views": []
 }
 ```
+
+A leaf field's value is `values.<name>`; a `repeat`'s value is `values.<name>` =
+an array of per-instance objects (`values.samples[i].fe_pct`); a `group` is
+transparent to data (its children stay in the flat, form-unique namespace). Rules
+inside a `repeat` evaluate per-instance; `count`/`total`/`max`/`min` aggregate
+over its instances (SPEC-hopper-rules).
 
 Any author (line text, the builder canvas, a model, or an XLSForm import) produces this tree; any consumer reads it. There is one source of truth.
 
@@ -225,9 +244,9 @@ Out of scope for v1 beyond this sketch. Because collection is `mode: "append"`, 
 
 ## 12. Scope (v1)
 
-**In:** the flat field types (§4); rules via the total expression calculus (§6, SPEC-hopper-rules); inline + Sheet choices (§7); auto-form + sparse view annotations; the declared storage/sync tiers (§5); `mode: "append"` collection with immutable records (stable id, union merge — conflict-free); XLSForm import/export of the supported subset (§9); schema-from-example authoring with the seam interview (§10); deployment as a boring served PWA (definitions added by URL / xlsx / capsule / project registry).
+**In:** the field types (§4) including **containers** — nested collapsible `group`s and `repeat`s (hierarchical tree §8; per-instance rules + minimal `count`/`total`/`max`/`min` aggregates — DECISIONS §12); rules via the total expression calculus (§6, SPEC-hopper-rules); inline + Sheet choices (§7); auto-form + sparse view annotations; the declared storage/sync tiers (§5); `mode: "append"` collection with immutable records (stable id, union merge — conflict-free); XLSForm import/export of the supported subset (§9); schema-from-example authoring with the seam interview (§10); deployment as a boring served PWA (definitions added by URL / xlsx / capsule / project registry).
 
-**Out / deferred:** repeats and nested groups; external/file-backed itemsets; a relational query engine and cross-entity joins (v0 is flat + simple `ref`); the mutable (non-append) data-app merge model (field-level LWW or CRDT — decide when the editable data-app, not the collector, is built); encryption; the analysis mill (§11); the dd multi-app factory (boring served PWA is the default substrate).
+**Out / deferred — two buckets** (DECISIONS §12). *Deferred-but-wanted* (on the roadmap): grid/pages styling; data preloading / `pulldata`; external/file-backed itemsets; multi-level cascading filters; richer/filtered repeat aggregates beyond the minimal set; a relational query engine and cross-entity joins (v1 is flat + simple `ref`). *Out by design / different model*: the mutable (non-append) data-app merge model (field-level LWW or CRDT — when the editable data-app is built); `public_key` submission encryption (we have signed records + optional object-level encryption-at-rest — §5; warn on import); the analysis mill (§11); the dd multi-app factory (boring served PWA is the default substrate).
 
 **The bounded new component** is the §6 rule calculus — now specified as a *total expression language* (SPEC-hopper-rules): a parser + AST evaluated on the reactive DAG, **not** a `soft` transpiler. Everything else is parse, map, render, and persist over machinery that already exists in the stack.
 

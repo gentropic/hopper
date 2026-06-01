@@ -113,7 +113,9 @@ Rules:
 - **`values`** holds the answers, typed per the §2/§4 value model of
   SPEC-hopper-rules. A field erased by non-relevance (rules §4.5) is **omitted or
   null** — irrelevant ⇒ empty, and the engine never stores a value the rules
-  blanked.
+  blanked. With the hierarchical tree (SPEC-hopper-form §8), `values` may
+  **nest**: a `repeat` is `values.<name>: [{…instance…}, …]`. This is ordinary
+  JSON — JCS canonicalization (§3) and signing handle it unchanged.
 - **`form`** is the content hash (§3) of the canonical form tree this record was
   filled against — the schema-version pointer. It is required and immutable.
 - **`at`** is captured device time. It is metadata for analysts only; the

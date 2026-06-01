@@ -88,9 +88,9 @@ An Android PWA covers essentially the entire XLSForm question palette — text, 
 
 Then, in order: **P2P sync** (Trystero) → **jig** (builder) → **mill** (analysis/central).
 
-**In for v1:** flat field types + simple `ref`; rules via the restricted profile; inline + Sheet choices; auto-form + sparse view annotations; append-only collection; XLSForm import/export of the supported subset; schema-from-example authoring; served-PWA deploy.
+**In for v1:** field types + simple `ref`, including **containers** — nested collapsible `group`s and `repeat`s (hierarchical tree; per-instance rules + minimal `count`/`total`/`max`/`min`/`mean` aggregates — DECISIONS §12); rules via the total expression calculus (SPEC-hopper-rules); inline + Sheet choices; auto-form + sparse view annotations; append-only collection; XLSForm import/export of the supported subset; schema-from-example authoring; served-PWA deploy.
 
-**Out / deferred:** repeats and nested groups; external/file-backed itemsets; a relational query engine and cross-entity joins; the mutable data-app merge model; encryption; the mill; the `dd` multi-app factory (the boring served PWA is the default substrate).
+**Out / deferred:** external/file-backed itemsets; multi-level cascading filters; grid/pages styling; data preloading; a relational query engine and cross-entity joins; the mutable data-app merge model; encryption (`public_key` submission encryption — we have signed records + object-level encryption-at-rest instead); the mill; the `dd` multi-app factory (the boring served PWA is the default substrate).
 
 ---
 

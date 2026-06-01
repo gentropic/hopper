@@ -27,9 +27,11 @@ Three properties define it, and the first is load-bearing:
    belongs to the later mill/query layer — SPEC-hopper-form §11, DECISIONS §6.
    The rule language is its own bounded calculus.)
 2. **Within-record only.** An expression reads other fields *of the same record*
-   plus literals and the definition's `choices`. It performs **no cross-record
-   queries or aggregates** — those are the mill's job. A rule is a pure function
-   `record → value`.
+   plus literals and the definition's `choices`. It performs **no cross-*record*
+   queries** — those are the mill's job. Within one record it *may* aggregate over
+   a `repeat`'s instances (`count`/`total`/`max`/`min`, §3.4) and is evaluated
+   **per-instance** inside a repeat (§4.7) — both still total, since a `repeat`
+   is a finite in-record collection. A rule is a pure function `record → value`.
 3. **One canonical form, two faces.** Each operation has exactly one written
    form, so the builder renders it as pickers (field ▾ / operator ▾ / value) and
    the hand-typed line is the *same artifact* lowering to the *same* node.
@@ -122,7 +124,11 @@ rel_op      = "<" | ">" | "<=" | ">=" | "=" | "!=" ;   (* single = , XPath style
 value       = arith ;
 arith       = term     { ("+" | "-") term } ;     (* calculate only; §3.3 *)
 term        = factor   { ("*" | "/") factor } ;
-factor      = "(" arith ")" | number | string | bool | field ;
+factor      = "(" arith ")" | aggregate | number | string | bool | field ;
+
+aggregate   = aggfn "(" path ")" ;                (* over a repeat's instances; §3.4 *)
+aggfn       = "count" | "total" | "max" | "min" | "mean" ;
+path        = ident { "." ident } ;               (* repeat | repeat.field *)
 
 field       = "${" ident "}" | ident ;            (* bare ident reads a field *)
 ident       = /[a-z0-9_-]+/ ;
@@ -174,6 +180,27 @@ SPEC-hopper-form §1).
 > symbol-less predicates (`between`, `contains`, `is blank`/`filled`, `matches`)
 > stay as words.
 
+### 3.4 Aggregates over a `repeat` (within-record)
+
+A `repeat` field (SPEC-hopper-form §4/§8) holds an array of per-instance objects.
+Five aggregate functions reduce over those instances — the minimal v1 set
+(richer/filtered aggregates are a fast-follow, DECISIONS §12). They are
+**within-record** (a repeat is a finite in-record collection), so they stay
+total — distinct from the mill's cross-*record* queries (§9).
+
+| form                 | meaning                                              | empty / absent repeat |
+|----------------------|------------------------------------------------------|-----------------------|
+| `count(rep)`         | number of instances                                  | `0`                   |
+| `total(rep.field)`   | sum of the numeric `field` across instances          | `0`                   |
+| `max(rep.field)`     | maximum numeric `field`                              | blank                 |
+| `min(rep.field)`     | minimum numeric `field`                              | blank                 |
+| `mean(rep.field)`    | arithmetic mean of the numeric `field`              | blank                 |
+
+`total`/`max`/`min`/`mean` skip instances whose `field` is blank or non-numeric;
+`count` counts instances regardless. `count` takes the repeat alone; the others
+take a `repeat.field` path. An aggregate depends on the whole repeat (for the
+reactive DAG, §5).
+
 ---
 
 ## 4. Evaluation semantics — blank, relevance, and validity
@@ -200,6 +227,12 @@ part.
    ODK semantics: irrelevant ⇒ empty.)
 6. **Calc fields** receive their `calculate` value and then participate as
    ordinary field references; a `calculate` over blanks yields blank.
+7. **Per-instance scope (repeats).** A rule attached to a node *inside* a
+   `repeat` evaluates **once per instance**: its field references resolve to that
+   instance's values plus visible ancestor-scope fields. The engine supplies the
+   per-instance values map; the evaluator stays scope-agnostic (it evaluates
+   against whatever map it is given). Aggregates (§3.4) are evaluated where the
+   repeat is in scope — typically *outside* it — reading the instance array.
 
 ---
 
@@ -288,13 +321,15 @@ definition of this spec.
 
 **In (v1):** the §3 grammar (symbolic comparisons & arithmetic, word booleans,
 keyword sugar for `between`/`contains`/presence/`matches`); the six verbs (§1);
-the §4 blank/relevance/validity semantics; the
+**within-record `repeat` aggregates** (`count`/`total`/`max`/`min`/`mean`, §3.4)
+and **per-instance scoping** (§4.7); the §4 blank/relevance/validity semantics; the
 reactive DAG (§5); single-level choice filters (§6); the §7 XLSForm common-subset
 bridge with explicit warn-on-tail.
 
-**Out / deferred:** cross-record queries and aggregates (`count`/`total`/`keep …
-where` — the **mill** query layer, where `soft`/AIR live); multi-level cascading
-filters and external itemsets; user-defined functions of any kind; date
+**Out / deferred:** cross-*record* queries (`take from … keep where … group by`
+— the **mill** query layer, where `soft`/AIR live; distinct from the within-record
+repeat aggregates above); richer/filtered repeat aggregates beyond the §3.4 set;
+multi-level cascading filters and external itemsets; user-defined functions of any kind; date
 arithmetic beyond comparison; full regex dialects (v1 `matches` is a simple
 anchored test); any I/O, DOM, or event surface (excluded *by construction* — the
 totality boundary).

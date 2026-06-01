@@ -16,6 +16,7 @@
 // arithmetic alike).
 
 const RESERVED = new Set(['and', 'or', 'not', 'between', 'contains', 'matches', 'is', 'blank', 'filled']);
+const AGGFNS = new Set(['count', 'total', 'max', 'min', 'mean']);   // within-record repeat aggregates (§3.4)
 
 function fail(msg) { throw new Error('rule parse error: ' + msg); }
 
@@ -24,7 +25,7 @@ function fail(msg) { throw new Error('rule parse error: ' + msg); }
 // id (incl. digit-leading). Subtraction needs surrounding space (`a - 5`), since
 // `-` is a valid identifier character and `a-5` lexes as one id (spec §3 ident).
 function tokenize(src) {
-  const re = /(\s+)|(\$\{[a-z0-9_-]+\})|("[^"]*")|(<=|>=|!=|<|>|=)|([-+*/()])|(\d+(?:\.\d+)?)|([a-z_][a-z0-9_-]*)/y;
+  const re = /(\s+)|(\$\{[a-z0-9_-]+\})|("[^"]*")|(<=|>=|!=|<|>|=)|([-+*/().])|(\d+(?:\.\d+)?)|([a-z_][a-z0-9_-]*)/y;
   const toks = [];
   let last = 0;
   while (last < src.length) {
@@ -59,6 +60,15 @@ export function parse(src) {
     if (t.k === 'str') { i++; return { t: 'str', v: t.v }; }
     if (t.k === 'field') { i++; return { t: 'field', name: t.v }; }
     if (t.k === 'word') {
+      // aggregate over a repeat's instances: aggfn ( path ) — §3.4
+      if (AGGFNS.has(t.v) && toks[i + 1] && toks[i + 1].k === 'op' && toks[i + 1].v === '(') {
+        const fn = t.v; i += 2;                          // consume aggfn and '('
+        if (!toks[i] || toks[i].k !== 'word') fail(`${fn}() expects a field path`);
+        const path = [toks[i].v]; i++;
+        while (op('.')) { i++; if (!toks[i] || toks[i].k !== 'word') fail("expected a name after '.'"); path.push(toks[i].v); i++; }
+        eatOp(')');
+        return { t: 'agg', fn, path };
+      }
       i++;
       if (t.v === 'true') return { t: 'bool', v: true };
       if (t.v === 'false') return { t: 'bool', v: false };
@@ -129,6 +139,16 @@ function ev(n, V) {
   switch (n.t) {
     case 'num': case 'str': case 'bool': return n.v;
     case 'field': { const x = V[n.name]; return x === undefined ? null : x; }
+    case 'agg': {                                        // §3.4 — over a repeat's instances
+      const list = Array.isArray(V[n.path[0]]) ? V[n.path[0]] : [];
+      if (n.fn === 'count') return list.length;
+      const nums = list.map((inst) => num(inst && inst[n.path[1]])).filter((x) => x !== null);
+      if (n.fn === 'total') return nums.reduce((a, b) => a + b, 0);   // empty → 0
+      if (nums.length === 0) return null;                             // max/min/mean of empty → blank
+      if (n.fn === 'max') return Math.max(...nums);
+      if (n.fn === 'min') return Math.min(...nums);
+      return nums.reduce((a, b) => a + b, 0) / nums.length;           // mean
+    }
     case 'neg': { const a = num(ev(n.e, V)); return a === null ? null : -a; }
     case '+': case '-': case '*': case '/': {
       const a = num(ev(n.l, V)), b = num(ev(n.r, V));
@@ -184,6 +204,7 @@ export function deps(exprOrAst) {
   (function walk(n) {
     if (!n || typeof n !== 'object') return;
     if (n.t === 'field') { out.add(n.name); return; }
+    if (n.t === 'agg') { out.add(n.path[0]); return; }   // depends on the whole repeat
     for (const k of ['e', 'l', 'r', 'lo', 'hi']) if (n[k]) walk(n[k]);
   })(asAst(exprOrAst));
   return [...out];
