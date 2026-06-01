@@ -27,6 +27,9 @@
     "geoscience"
   ],
   "scripts": {
-    "build": "echo \"nothing to build yet — see docs/SPEC-hopper.md \\u00a76\" && exit 0"
+    "build": "node build.js",
+    "test": "node --test",
+    "serve": "node tools/serve.mjs",
+    "sync-vendor": "node tools/sync-vendor.mjs"
   }
 }

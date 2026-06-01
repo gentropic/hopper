@@ -1,0 +1,27 @@
+{
+  "description": "Rule-expression evaluation vectors — SPEC-hopper-rules §3 (grammar) + §4 (blank/relevance/validity). The evaluator port (src/js/rules/eval.js) runs these.",
+  "vectors": [
+    { "expr": "fe_pct between 0 and 100", "values": { "fe_pct": 64.2 }, "expected": true },
+    { "expr": "fe_pct between 0 and 100", "values": { "fe_pct": 140 }, "expected": false },
+    { "expr": "fe_pct > 60", "values": { "fe_pct": 64.2 }, "expected": true },
+    { "expr": "fe_pct > 60", "values": { "fe_pct": 46.2 }, "expected": false },
+    { "expr": "fe_pct >= 60", "values": { "fe_pct": 60 }, "expected": true },
+    { "expr": "resample = \"yes\"", "values": { "resample": "yes" }, "expected": true },
+    { "expr": "resample = \"yes\"", "values": { "resample": "no" }, "expected": false },
+    { "expr": "resample != \"yes\"", "values": { "resample": "no" }, "expected": true },
+    { "expr": "litho contains \"itabirite\"", "values": { "litho": ["itabirite", "canga"] }, "expected": true },
+    { "expr": "litho contains \"hematitite\"", "values": { "litho": ["itabirite", "canga"] }, "expected": false },
+    { "expr": "site_id is filled", "values": { "site_id": "QF-118" }, "expected": true },
+    { "expr": "site_id is blank", "values": {}, "expected": true },
+    { "expr": "fe_pct > 60 and lithology = \"itabirite\"", "values": { "fe_pct": 64.2, "lithology": "itabirite" }, "expected": true },
+    { "expr": "fe_pct > 60 or lithology = \"canga\"", "values": { "fe_pct": 10, "lithology": "canga" }, "expected": true },
+    { "expr": "not (fe_pct > 60)", "values": { "fe_pct": 10 }, "expected": true },
+
+    { "note": "§4.2 — blank evaluates false for relevant/require/show", "verb": "relevant",
+      "expr": "resample = \"yes\"", "values": {}, "expected": false },
+    { "note": "§4.3 — a constraint passes on an empty answer (emptiness is require's job)", "verb": "constrain",
+      "expr": "fe_pct between 0 and 100", "values": {}, "expectedConstraintValid": true },
+    { "note": "§3.3 — division by zero yields blank, never throws (totality)", "verb": "calculate",
+      "expr": "a / b", "values": { "a": 5, "b": 0 }, "expected": null }
+  ]
+}

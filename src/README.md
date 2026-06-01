@@ -1,9 +1,21 @@
 # src/
 
-Where the modular implementation lands. Empty until the build starts — this
-file is the map.
+Where the modular implementation lands. **Scaffolded** (2026-06-01) — the build
+runs and the first module + vectors are in. See CLAUDE.md "Build, test & layout"
+for the full picture; in short:
 
-Per SPEC-hopper §3, the components and their intended packages:
+- `src/js/main.js` — the ordered import manifest `build.js` inlines.
+- `src/js/records/address.js` — first module (content-addressing + stream-id).
+- `src/js/boot.js` — scaffold shell + service-worker registration.
+- `src/style.css`, `src/template.html` — inlined into the built `collector.html`.
+- planned dirs (created as ported): `rules/ renderer/ xlsform/ storage/ sync/
+  collector/ui/`.
+
+`npm run build` → `collector.html`; `npm test` → `node --test`.
+
+The components and their *intended* packages (per SPEC-hopper §3) — these are the
+**staged extraction** targets (lift into `@gcu/hopper-*` once stable, not a
+day-one monorepo):
 
 - **engine / renderer** — tree → live form; reactive recompute; validation;
   rule evaluation; persistence. Port from `reference/hopper-renderer.html`.

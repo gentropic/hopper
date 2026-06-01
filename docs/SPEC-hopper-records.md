@@ -57,10 +57,13 @@ makes the union conflict-free.
 **Stream-id** is the self-verifying short handle derived from the triple:
 
 ```
-stream-id = base64url( SHA-256( pubkey ‖ device-id ‖ install-epoch ) )[0:22]
+stream-id = base64url( SHA-256( join(pubkey, device-id, install-epoch) ) )[0:22]
 ```
 
-(~128 bits — collision-safe at any realistic scale.) Each stream registers itself
+(~128 bits — collision-safe at any realistic scale.) The `join` is **length-
+prefixed** — each field encoded as `<len>:<value>` and concatenated — so no
+field's content can be confused for another's (`("a","bc",…)` and `("ab","c",…)`
+must not collide). Realized in `src/js/records/address.js`. Each stream registers itself
 once, write-once, in `streams/<stream-id>.json`:
 
 ```json

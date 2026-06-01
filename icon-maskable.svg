@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hopper">
+  <!-- full-bleed background for maskable safe zone -->
+  <rect width="64" height="64" fill="#0E1012"/>
+  <!-- icon kept within the inner ~80% safe zone -->
+  <path d="M19 22 H45 L36 39 V46 H28 V39 Z" fill="none" stroke="#E8763B" stroke-width="3"
+        stroke-linejoin="round"/>
+  <line x1="19" y1="22" x2="45" y2="22" stroke="#4E9A6B" stroke-width="3" stroke-linecap="round"/>
+</svg>

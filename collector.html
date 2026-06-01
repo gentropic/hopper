@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1012">
+<title>Hopper</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+/* Scaffold styling. Placeholder Switchboard tokens — replaced by the vendored
+   switchboard token block once `tools/sync-vendor.mjs` pulls it in.
+   Light = "equipment gray" (:root, Switchboard default); dark = "basalt". */
+
+:root {
+  --au-bg: #E8E9EA; --au-surface: #F4F5F6; --au-text: #1A1C1E; --au-muted: #6B7075;
+  --au-action: #C8551B; --au-border: #CFD2D5;
+  --au-sans: "Barlow", system-ui, -apple-system, sans-serif;
+  --au-mono: "Space Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+[data-theme="dark"] {
+  --au-bg: #0E1012; --au-surface: #16191C; --au-text: #E6E8EA; --au-muted: #9AA0A6;
+  --au-action: #E8763B; --au-border: #2A2F34;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --au-bg: #0E1012; --au-surface: #16191C; --au-text: #E6E8EA; --au-muted: #9AA0A6;
+    --au-action: #E8763B; --au-border: #2A2F34;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sans); }
+#app { min-height: 100%; display: grid; place-items: center; }
+
+.scaffold { text-align: center; padding: 2rem; max-width: 32rem; }
+.scaffold h1 { font-family: var(--au-mono); letter-spacing: .02em; margin: 0 0 .25rem; }
+.scaffold .tag { color: var(--au-action); font-family: var(--au-mono); font-size: .85rem; }
+.scaffold .muted { color: var(--au-muted); font-size: .9rem; }
+.scaffold code { font-family: var(--au-mono); font-size: .8rem; word-break: break-all; }
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+// ── src/js/records/address.js ──
+// Content-addressing & stream identity — SPEC-hopper-records §1, §3. Pure.
+//
+// Self-contained base64url for now; will delegate to the vendored @gcu/capsule
+// `bytesToB64Url` once vendored (same output). `crypto` is the Web Crypto global,
+// present in browsers and Node ≥ 20.
+
+const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+// Unpadded, URL-safe base64 of a byte sequence.
+function bytesToB64Url(input) {
+  const b = new Uint8Array(input);
+  let out = '';
+  for (let i = 0; i < b.length; i += 3) {
+    const rem = b.length - i;
+    const n = (b[i] << 16) | ((rem > 1 ? b[i + 1] : 0) << 8) | (rem > 2 ? b[i + 2] : 0);
+    out += B64URL[(n >> 18) & 63] + B64URL[(n >> 12) & 63];
+    if (rem > 1) out += B64URL[(n >> 6) & 63];
+    if (rem > 2) out += B64URL[n & 63];
+  }
+  return out;
+}
+
+const utf8 = (s) => new TextEncoder().encode(s);
+
+async function sha256(bytes) {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+}
+
+// `sha256-<b64url>` — the content address of forms and attachment blobs (§3).
+async function contentAddress(bytes) {
+  return 'sha256-' + bytesToB64Url(await sha256(bytes));
+}
+
+// The self-verifying stream handle (§1): a 22-char (~128-bit) base64url prefix of
+// SHA-256 over the identifying triple. The spec's `‖` join is realized here as a
+// length-prefixed encoding, so no field's content can be confused for another's.
+async function streamId(pubkey, deviceId, epoch) {
+  const joined = utf8([pubkey, deviceId, epoch].map((s) => `${String(s).length}:${s}`).join(''));
+  return bytesToB64Url(await sha256(joined)).slice(0, 22);
+}
+
+// ── src/js/boot.js ──
+// Boot — mounts the collector shell and registers the service worker.
+// Scaffold: renders a placeholder (and a live content-address, proving the
+// records/ module works in-browser) until the renderer and shell land.
+
+
+
+async function mount() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  let addr = '(computing…)';
+  try { addr = await contentAddress(utf8('hopper')); } catch (e) { addr = '(crypto unavailable)'; }
+  app.innerHTML = `
+    <main class="scaffold">
+      <h1>Hopper</h1>
+      <p class="tag">collector · scaffold build</p>
+      <p class="muted">The shell, renderer, storage, and sync land here.
+      See <code>docs/</code> for the specs.</p>
+      <p class="muted">content-address of <code>"hopper"</code>:<br><code>${addr}</code></p>
+    </main>`;
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+document.addEventListener('DOMContentLoaded', mount);
+</script>
+</body>
+</html>
