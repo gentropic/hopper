@@ -293,11 +293,11 @@ bridge does not recognize lands as an opaque `expr` with a warning) and on expor
 (a native form with no XLSForm column — e.g. `show` — is reported in `dropped`).
 This honors SPEC-hopper invariant #5 (XLSForm round-trips; the tail warns).
 
-> Implementation note: the reference `reference/hopper-xlsform.js`
-> (`xpathToSoft` / `softToXpath`) was written against the *earlier keyword* forms
-> (it emits/consumes `between` / `is above` / `equals`). Under this revision the
-> relational and equality cases collapse to the identity mappings above — an
-> implementation follow-up, not a contract change.
+> Implementation: the symbolic bridge ships at **`src/js/xlsform/index.js`**
+> (`xpathToSoft` / `softToXpath`), round-trip-tested (`test/xlsform.test.mjs`),
+> incl. `group`/`repeat` structure and `count`/`sum` aggregates. (The original
+> `reference/hopper-xlsform.js` used the earlier keyword forms; the port replaces
+> them with the identity mappings above.)
 
 ---
 

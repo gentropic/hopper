@@ -16,4 +16,5 @@ import * as nobleEd from '../../vendor/noble-ed25519.js';  // bundled Ed25519 fa
 import './records/ed25519-fallback.js';                    // registers noble as the fallback backend
 import './records/envelope.js';  // → makeRecord, verifyRecord, correct, tombstone, resolve (§2/§5/§9)
 import './rules/eval.js';        // → parse, evaluate, evalBool, constraintValid, deps (SPEC-hopper-rules)
+import './xlsform/index.js';     // → xlsformToTree, treeToXlsform (+ bridge) — SPEC-hopper-form §9
 import './boot.js';              // mounts the shell, registers the service worker

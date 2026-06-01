@@ -209,11 +209,11 @@ Any author (line text, the builder canvas, a model, or an XLSForm import) produc
 
 Two-way. **Import**: parse an `.xlsx` (SheetJS) — `survey`/`choices`/`settings` sheets → the tree, using the type map in §4 and the rule-column map in §6. **Export**: emit the tree as a conforming XLSForm so it runs in real ODK Collect/Central. This makes Hopper an on-ramp to and complement of ODK, not a competitor.
 
-**Supported subset (v1):** the flat type families of §4; `relevant`/`constraint`/`constraint_message`/`calculation`/`required`/`default`/`hint`/`appearance`; single-level `choices`; `settings` (`form_title`/`form_id`/`version`/`default_language`); flat `begin_group`/`end_group`.
+**Supported subset (v1):** the §4 type families; **containers** — `begin_group`/`end_group` (**nested**) and `begin_repeat`/`end_repeat` (→ hierarchical tree §8); `relevant`/`constraint`/`constraint_message`/`calculation`/`required` (static **or** dynamic)/`default`/`hint`/`appearance`; the common aggregate XPath (`count()`, `sum(node/field)` ↔ `count`/`total`); single-level `choices`; `settings` (`form_title`/`form_id`/`version`/`default_language`).
 
-**Deferred (round-trips opaquely or warns):** `begin_repeat`/`end_repeat` (node-set XPath), `select_*_from_file` / database-backed external itemsets, cascading `choice_filter` beyond one level, encryption (`public_key`), data preloading, grid/pages styling. A definition using only the supported subset is "XLSForm-compatible for common forms" — not a conformant Collect replacement, by design.
+**Deferred (round-trips opaquely or warns):** `select_*_from_file` / database-backed external itemsets; cascading `choice_filter` beyond one level; exotic repeat XPath (`indexed-repeat`, `position(..)`, cross-instance node-sets); `public_key` encryption (different model — §12); data preloading; grid/pages styling. A definition using only the supported subset is "XLSForm-compatible for common forms" — not a conformant Collect replacement, by design.
 
-**Expression bridge:** XLSForm's restricted XPath (`${f}`, `selected()`, `if()`, `coalesce()`, comparisons, arithmetic) transpiles to the same `soft`/AIR target as native rules, so both directions share one evaluator.
+**Expression bridge:** XLSForm restricted XPath ↔ the symbolic rule language (SPEC-hopper-rules), **syntactic and near-identity** for relational/arithmetic operators (only `${f}`↔`f` and `.`↔self differ); `between`/`selected`/`regex`/presence/`count`/`sum` are the non-identity mappings; the rest passes through verbatim and is flagged. Ported, symbolic, and round-trip-tested at **`src/js/xlsform/index.js`** (`xpathToSoft`/`softToXpath`).
 
 ---
 
