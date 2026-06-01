@@ -19,10 +19,12 @@ function randId(n = 8) { const a = new Uint8Array(n); crypto.getRandomValues(a);
 export function createStore(backend) {
   let identity = null;
   let counter = 0;
+  let mirror = null;   // optional second backend (a chosen folder via FSAA) — auto-backup
 
-  const ensureDir = async (dir) => { try { await backend.mkdir(dir, { recursive: true }); } catch {} };
+  const ensureDirOn = async (be, dir) => { try { await be.mkdir(dir, { recursive: true }); } catch {} };
+  const writeJSONOn = async (be, p, obj) => { await ensureDirOn(be, dirname(p)); await be.writeFile(p, JSON.stringify(obj, null, 2)); };
   const readJSON = async (p) => ((await backend.exists(p)) ? JSON.parse(await backend.readFile(p)) : null);
-  const writeJSON = async (p, obj) => { await ensureDir(dirname(p)); await backend.writeFile(p, JSON.stringify(obj, null, 2)); };
+  const writeJSON = async (p, obj) => { await writeJSONOn(backend, p, obj); if (mirror) { try { await writeJSONOn(mirror, p, obj); } catch {} } };
   const listDir = async (dir) => { try { return await backend.readdir(dir); } catch { return []; } };
 
   async function init({ name } = {}) {
@@ -83,7 +85,25 @@ export function createStore(backend) {
   }
 
   async function markExported() { await writeJSON('/export-meta.json', { count: counter, at: new Date().toISOString() }); }
-  async function unbackedUp() { const m = await readJSON('/export-meta.json'); return Math.max(0, counter - ((m && m.count) || 0)); }
+  async function unbackedUp() {
+    if (mirror) return 0;                      // a folder mirror auto-backs-up every save (DECISIONS §5)
+    const m = await readJSON('/export-meta.json');
+    return Math.max(0, counter - ((m && m.count) || 0));
+  }
+
+  // Attach a folder (FSAA) or any backend as an auto-backup mirror, backfilling
+  // the existing repo. From then on every write lands in the folder too — the
+  // "never have to remember" durability floor; if the folder is in a file-sync
+  // service it is conflict-free off-device (DECISIONS §5).
+  async function setMirror(be) {
+    mirror = be;
+    for (const dir of ['/streams', '/forms']) for (const n of await listDir(dir)) await writeJSONOn(be, `${dir}/${n}`, await readJSON(`${dir}/${n}`));
+    const rdir = `/records/${identity.streamId}`;
+    for (const n of (await listDir(rdir)).slice().sort()) await writeJSONOn(be, `${rdir}/${n}`, await readJSON(`${rdir}/${n}`));
+  }
+  // The identity incl. private key — for deliberate KEY backup (separate from the
+  // data export, which omits it). Lose this and you can't keep signing as you.
+  const exportIdentity = () => identity;
 
   // Browser-only: request persistent storage (the eviction lever — covers IDB +
   // OPFS) and read the durability status. Degrade gracefully off-browser/in tests.
@@ -98,11 +118,11 @@ export function createStore(backend) {
         if (navigator.storage.estimate) bytesUsed = (await navigator.storage.estimate()).usage || 0;
       }
     } catch {}
-    return { persisted, bytesUsed, recordCount: counter, unbackedUp: await unbackedUp() };
+    return { persisted, bytesUsed, recordCount: counter, unbackedUp: await unbackedUp(), mirrored: !!mirror };
   }
 
   return {
     init, putForm, saveRecord, listRecords, identity: () => identity, count: () => counter,
-    exportBundle, markExported, unbackedUp, persistRequest, status,
+    exportBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }

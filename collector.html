@@ -5687,10 +5687,12 @@ function randId(n = 8) { const a = new Uint8Array(n); crypto.getRandomValues(a);
 function createStore(backend) {
   let identity = null;
   let counter = 0;
+  let mirror = null;   // optional second backend (a chosen folder via FSAA) — auto-backup
 
-  const ensureDir = async (dir) => { try { await backend.mkdir(dir, { recursive: true }); } catch {} };
+  const ensureDirOn = async (be, dir) => { try { await be.mkdir(dir, { recursive: true }); } catch {} };
+  const writeJSONOn = async (be, p, obj) => { await ensureDirOn(be, dirname(p)); await be.writeFile(p, JSON.stringify(obj, null, 2)); };
   const readJSON = async (p) => ((await backend.exists(p)) ? JSON.parse(await backend.readFile(p)) : null);
-  const writeJSON = async (p, obj) => { await ensureDir(dirname(p)); await backend.writeFile(p, JSON.stringify(obj, null, 2)); };
+  const writeJSON = async (p, obj) => { await writeJSONOn(backend, p, obj); if (mirror) { try { await writeJSONOn(mirror, p, obj); } catch {} } };
   const listDir = async (dir) => { try { return await backend.readdir(dir); } catch { return []; } };
 
   async function init({ name } = {}) {
@@ -5751,7 +5753,25 @@ function createStore(backend) {
   }
 
   async function markExported() { await writeJSON('/export-meta.json', { count: counter, at: new Date().toISOString() }); }
-  async function unbackedUp() { const m = await readJSON('/export-meta.json'); return Math.max(0, counter - ((m && m.count) || 0)); }
+  async function unbackedUp() {
+    if (mirror) return 0;                      // a folder mirror auto-backs-up every save (DECISIONS §5)
+    const m = await readJSON('/export-meta.json');
+    return Math.max(0, counter - ((m && m.count) || 0));
+  }
+
+  // Attach a folder (FSAA) or any backend as an auto-backup mirror, backfilling
+  // the existing repo. From then on every write lands in the folder too — the
+  // "never have to remember" durability floor; if the folder is in a file-sync
+  // service it is conflict-free off-device (DECISIONS §5).
+  async function setMirror(be) {
+    mirror = be;
+    for (const dir of ['/streams', '/forms']) for (const n of await listDir(dir)) await writeJSONOn(be, `${dir}/${n}`, await readJSON(`${dir}/${n}`));
+    const rdir = `/records/${identity.streamId}`;
+    for (const n of (await listDir(rdir)).slice().sort()) await writeJSONOn(be, `${rdir}/${n}`, await readJSON(`${rdir}/${n}`));
+  }
+  // The identity incl. private key — for deliberate KEY backup (separate from the
+  // data export, which omits it). Lose this and you can't keep signing as you.
+  const exportIdentity = () => identity;
 
   // Browser-only: request persistent storage (the eviction lever — covers IDB +
   // OPFS) and read the durability status. Degrade gracefully off-browser/in tests.
@@ -5766,12 +5786,12 @@ function createStore(backend) {
         if (navigator.storage.estimate) bytesUsed = (await navigator.storage.estimate()).usage || 0;
       }
     } catch {}
-    return { persisted, bytesUsed, recordCount: counter, unbackedUp: await unbackedUp() };
+    return { persisted, bytesUsed, recordCount: counter, unbackedUp: await unbackedUp(), mirrored: !!mirror };
   }
 
   return {
     init, putForm, saveRecord, listRecords, identity: () => identity, count: () => counter,
-    exportBundle, markExported, unbackedUp, persistRequest, status,
+    exportBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }
 
@@ -5822,6 +5842,22 @@ function downloadJSON(filename, obj) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// Tiny IDB keyval to persist the chosen backup-folder handle across reloads, so
+// "back up to a folder" is set once, not every session (FileSystemDirectoryHandle
+// is structured-cloneable into IndexedDB).
+function prefKV(method, val) {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('hopper-prefs', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onerror = () => rej(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', method === 'get' ? 'readonly' : 'readwrite');
+      const r = method === 'get' ? tx.objectStore('kv').get('backupDir') : tx.objectStore('kv').put(val, 'backupDir');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    };
+  });
+}
+
 async function setup() {
   const app = document.getElementById('app');
   if (!app) return;
@@ -5837,8 +5873,26 @@ async function setup() {
   const formHash = await store.putForm(DEMO);
   await store.persistRequest();                         // ask for persistent storage (the eviction lever)
 
+  let backupName = null;
+  const supportsFolder = typeof window.showDirectoryPicker === 'function';
+
+  // Best-effort: restore a previously chosen backup folder (set-once across reloads).
+  async function attachFolder(handle, alreadyGranted) {
+    if (!alreadyGranted && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return false;
+    const m = new vfs.FSAABackend({ handle }); await m.init();
+    await store.setMirror(m); backupName = handle.name;
+    return true;
+  }
+  if (supportsFolder) {
+    try {
+      const h = await prefKV('get');
+      if (h && (await h.queryPermission({ mode: 'readwrite' })) === 'granted') await attachFolder(h, true);
+    } catch {}
+  }
+
   // The storage readout — a trust instrument (DECISIONS §1 / collector §4.3):
-  // persistence state, record count, bytes, the loud single-copy warning, export.
+  // persistence, record count, bytes, the loud single-copy warning, and the
+  // durability actions (folder auto-backup, data export, key backup).
   async function refresh() {
     const s = await store.status();
     readout.replaceChildren();
@@ -5846,18 +5900,33 @@ async function setup() {
     const badge = mk('span', 'hf-badge ' + (s.persisted ? 'ok' : 'warn'));
     badge.textContent = s.persisted ? 'persistent ✓' : 'best-effort ⚠';
     const info = mk('span', 'hf-readout-info');
-    info.textContent = `${s.recordCount} record${s.recordCount === 1 ? '' : 's'} · ${(s.bytesUsed / 1024).toFixed(0)} KB · ${id.streamId.slice(0, 8)}…`;
+    info.textContent = `${s.recordCount} record${s.recordCount === 1 ? '' : 's'} · ${(s.bytesUsed / 1024).toFixed(0)} KB`
+      + (s.mirrored ? ` · ↪ ${backupName || 'folder'}` : '') + ` · ${id.streamId.slice(0, 8)}…`;
+    line.append(badge, info);
+
+    if (supportsFolder && !s.mirrored) {
+      const fb = mk('button', 'hf-export'); fb.type = 'button'; fb.textContent = 'Back up to folder…';
+      fb.addEventListener('click', async () => {
+        try {
+          const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+          if (await attachFolder(dir, false)) { try { await prefKV('put', dir); } catch {} await refresh(); }
+        } catch {}
+      });
+      line.append(fb);
+    }
     const exp = mk('button', 'hf-export'); exp.type = 'button'; exp.textContent = 'Export all';
     exp.addEventListener('click', async () => {
       downloadJSON(`hopper-${DEMO.meta.id}-${Date.now()}.json`, await store.exportBundle());
-      await store.markExported();
-      await refresh();
+      await store.markExported(); await refresh();
     });
-    line.append(badge, info, exp);
+    const key = mk('button', 'hf-export'); key.type = 'button'; key.textContent = 'Back up key'; key.title = 'Downloads your signing key — keep it private and safe';
+    key.addEventListener('click', () => downloadJSON('hopper-identity.key.json', store.exportIdentity()));
+    line.append(exp, key);
     readout.append(line);
+
     if (s.unbackedUp > 0) {
       const w = mk('div', 'hf-warn'); w.dataset.unbacked = String(s.unbackedUp);
-      w.textContent = `⚠ ${s.unbackedUp} record${s.unbackedUp === 1 ? '' : 's'} exist only on this device — export or sync`;
+      w.textContent = `⚠ ${s.unbackedUp} record${s.unbackedUp === 1 ? '' : 's'} exist only on this device — back up to a folder, export, or sync`;
       readout.append(w);
     }
   }

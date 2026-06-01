@@ -50,6 +50,26 @@ test('store: export bundle + single-copy (unbacked) tracking', async () => {
   assert.equal(await store.unbackedUp(), 1, 'new record is single-copy again');
 });
 
+test('store: folder mirror auto-backs-up the repo (backfill + ongoing)', async () => {
+  const primary = new MemoryBackend(), folder = new MemoryBackend();
+  const store = createStore(primary);
+  const id = await store.init();
+  const fh = await store.putForm(FORM);
+  await store.saveRecord({ form: fh, values: { a: 1 } });
+  assert.equal(await store.unbackedUp(), 1, 'single-copy before a mirror');
+
+  await store.setMirror(folder);                       // pick a folder → backfill
+  assert.equal(await store.unbackedUp(), 0, 'mirror clears the single-copy warning');
+  assert.ok(await folder.exists(`/records/${id.streamId}/000000.json`), 'existing record backfilled to folder');
+  assert.ok(await folder.exists(`/forms/${fh}.json`), 'form backfilled');
+  assert.ok(await folder.exists(`/streams/${id.streamId}.json`), 'stream registration backfilled');
+
+  await store.saveRecord({ form: fh, values: { a: 2 } });   // ongoing writes mirror too
+  assert.ok(await folder.exists(`/records/${id.streamId}/000001.json`), 'new record lands in the folder');
+  assert.equal(await store.unbackedUp(), 0);
+  assert.equal((await store.status()).mirrored, true);
+});
+
 test('store: identity + counter persist across reload (same backend)', async () => {
   const backend = new MemoryBackend();
   const s1 = createStore(backend);

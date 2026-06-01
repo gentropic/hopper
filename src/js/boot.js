@@ -44,6 +44,22 @@ function downloadJSON(filename, obj) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// Tiny IDB keyval to persist the chosen backup-folder handle across reloads, so
+// "back up to a folder" is set once, not every session (FileSystemDirectoryHandle
+// is structured-cloneable into IndexedDB).
+function prefKV(method, val) {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('hopper-prefs', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onerror = () => rej(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', method === 'get' ? 'readonly' : 'readwrite');
+      const r = method === 'get' ? tx.objectStore('kv').get('backupDir') : tx.objectStore('kv').put(val, 'backupDir');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    };
+  });
+}
+
 async function setup() {
   const app = document.getElementById('app');
   if (!app) return;
@@ -59,8 +75,26 @@ async function setup() {
   const formHash = await store.putForm(DEMO);
   await store.persistRequest();                         // ask for persistent storage (the eviction lever)
 
+  let backupName = null;
+  const supportsFolder = typeof window.showDirectoryPicker === 'function';
+
+  // Best-effort: restore a previously chosen backup folder (set-once across reloads).
+  async function attachFolder(handle, alreadyGranted) {
+    if (!alreadyGranted && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return false;
+    const m = new vfs.FSAABackend({ handle }); await m.init();
+    await store.setMirror(m); backupName = handle.name;
+    return true;
+  }
+  if (supportsFolder) {
+    try {
+      const h = await prefKV('get');
+      if (h && (await h.queryPermission({ mode: 'readwrite' })) === 'granted') await attachFolder(h, true);
+    } catch {}
+  }
+
   // The storage readout — a trust instrument (DECISIONS §1 / collector §4.3):
-  // persistence state, record count, bytes, the loud single-copy warning, export.
+  // persistence, record count, bytes, the loud single-copy warning, and the
+  // durability actions (folder auto-backup, data export, key backup).
   async function refresh() {
     const s = await store.status();
     readout.replaceChildren();
@@ -68,18 +102,33 @@ async function setup() {
     const badge = mk('span', 'hf-badge ' + (s.persisted ? 'ok' : 'warn'));
     badge.textContent = s.persisted ? 'persistent ✓' : 'best-effort ⚠';
     const info = mk('span', 'hf-readout-info');
-    info.textContent = `${s.recordCount} record${s.recordCount === 1 ? '' : 's'} · ${(s.bytesUsed / 1024).toFixed(0)} KB · ${id.streamId.slice(0, 8)}…`;
+    info.textContent = `${s.recordCount} record${s.recordCount === 1 ? '' : 's'} · ${(s.bytesUsed / 1024).toFixed(0)} KB`
+      + (s.mirrored ? ` · ↪ ${backupName || 'folder'}` : '') + ` · ${id.streamId.slice(0, 8)}…`;
+    line.append(badge, info);
+
+    if (supportsFolder && !s.mirrored) {
+      const fb = mk('button', 'hf-export'); fb.type = 'button'; fb.textContent = 'Back up to folder…';
+      fb.addEventListener('click', async () => {
+        try {
+          const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+          if (await attachFolder(dir, false)) { try { await prefKV('put', dir); } catch {} await refresh(); }
+        } catch {}
+      });
+      line.append(fb);
+    }
     const exp = mk('button', 'hf-export'); exp.type = 'button'; exp.textContent = 'Export all';
     exp.addEventListener('click', async () => {
       downloadJSON(`hopper-${DEMO.meta.id}-${Date.now()}.json`, await store.exportBundle());
-      await store.markExported();
-      await refresh();
+      await store.markExported(); await refresh();
     });
-    line.append(badge, info, exp);
+    const key = mk('button', 'hf-export'); key.type = 'button'; key.textContent = 'Back up key'; key.title = 'Downloads your signing key — keep it private and safe';
+    key.addEventListener('click', () => downloadJSON('hopper-identity.key.json', store.exportIdentity()));
+    line.append(exp, key);
     readout.append(line);
+
     if (s.unbackedUp > 0) {
       const w = mk('div', 'hf-warn'); w.dataset.unbacked = String(s.unbackedUp);
-      w.textContent = `⚠ ${s.unbackedUp} record${s.unbackedUp === 1 ? '' : 's'} exist only on this device — export or sync`;
+      w.textContent = `⚠ ${s.unbackedUp} record${s.unbackedUp === 1 ? '' : 's'} exist only on this device — back up to a folder, export, or sync`;
       readout.append(w);
     }
   }
