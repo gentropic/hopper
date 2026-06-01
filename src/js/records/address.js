@@ -20,6 +20,16 @@ export function bytesToB64Url(input) {
   return out;
 }
 
+// Inverse of bytesToB64Url. Tolerates the unpadded URL-safe form.
+export function b64UrlToBytes(s) {
+  const std = s.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = std.length % 4 ? '='.repeat(4 - (std.length % 4)) : '';
+  const bin = atob(std + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 export const utf8 = (s) => new TextEncoder().encode(s);
 
 export async function sha256(bytes) {

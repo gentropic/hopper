@@ -143,17 +143,31 @@ Rules:
 `crypto.subtle.digest('SHA-256', …)`). The `sha256-` prefix keeps the scheme
 agile.
 
-**Canonical serialization** (for both hashing forms and signing records): the
-object's **canonical JSON** per **RFC 8785 (JSON Canonicalization Scheme)** —
-lexicographically sorted keys, minimal escaping, shortest round-trip number form,
-UTF-8. This is the one genuinely fiddly implementation point; use a JCS library
-rather than hand-rolling number canonicalization. (It is the same "one canonical
-form" discipline `@gcu/yaml`'s canonical emit gives the human source — here for
-the machine/wire form.)
+**Canonical serialization** (the *signing* form): **RFC 8785 (JSON
+Canonicalization Scheme)** — lexicographically sorted keys (UTF-16 code-unit
+order), minimal RFC 8259 escaping, ECMAScript shortest-round-trip numbers, UTF-8,
+no whitespace; non-finite numbers rejected. JCS is chosen over a bespoke form
+*because* it is a reviewed standard with official test vectors — the right
+property for bytes that independent implementations (a Python mill, a future
+port) must reproduce exactly. In JS it is **small and low-risk to hand-roll**:
+`JSON.stringify` already emits JCS-compliant numbers and string escaping by the
+ECMAScript spec, so the canonicalizer is just "recursively sort keys, then
+`JSON.stringify` the scalars" — pinned to the RFC's own vectors
+(`records/jcs.js`). No third-party library or hand-rolled number logic needed.
 
-**Signature:** Ed25519 (Web Crypto, or the stack's `keygen`/`sign` — auditable
-signs notebooks the same way). Sign the JCS bytes of the envelope-without-`sig`;
-verify by recomputation.
+**Storage layout ≠ signing form.** The signature is over `canonicalize(data)`,
+*not* over the stored file's bytes — so records are **stored as plain pretty
+JSON** (readable `git diff`s in the repo) while signing/verifying re-derives the
+JCS bytes from the parsed data. Whitespace and key order in the file never affect
+verification. This decouples a layout concern (which may evolve) from a
+cryptographic invariant (which must never change).
+
+**Signature:** Ed25519 — native Web Crypto preferred (`crypto.subtle`,
+auditable's notebook-signing approach), with a **bundled** noble-ed25519 fallback
+for browsers lacking it (never lazy-loaded — same rule as ggwave; `records/crypto.js`,
+vendor/PROVENANCE.md). Keys are raw 32-byte values (base64url), matching the
+stack's `keygen`. Sign the JCS bytes of the envelope-without-`sig`; verify by
+recomputation.
 
 **Integrity, layered:** content-addressing makes forms/blobs tamper-evident by
 address; the signature makes records tamper-evident *and* attributable. A

@@ -9,6 +9,9 @@
 //   import '../../vendor/capsule.js';   // → @gcu/capsule: encodeInline, resolve, …
 //
 // Internal modules, in dependency order:
-import './records/address.js';   // → streamId, contentAddress (pure; SPEC-hopper-records §1/§3)
+import './records/address.js';   // → streamId, contentAddress, b64url (pure; SPEC-hopper-records §1/§3)
+import './records/jcs.js';       // → canonicalize (RFC 8785 signing form; §3)
+import './records/crypto.js';    // → Ed25519 sign/verify/keygen (Web Crypto + noble fallback seam; §3)
+import './records/envelope.js';  // → makeRecord, verifyRecord, correct, tombstone, resolve (§2/§5/§9)
 import './rules/eval.js';        // → parse, evaluate, evalBool, constraintValid, deps (SPEC-hopper-rules)
 import './boot.js';              // mounts the shell, registers the service worker
