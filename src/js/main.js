@@ -30,5 +30,7 @@ import './formsource/xlsx.js';   // → loadXlsx: .xlsx → §8 tree (the ODK on
 import * as capsule from '../../vendor/capsule.js';  // @gcu/capsule (bundled ESM, namespace-wrapped)
 import './formsource/capsule.js'; // → resolveFormCapsule: capsule/URL → §8 tree (SPEC-collector §1)
 import '../../vendor/qrcodegen.js'; // Nayuki QR gen — classic global script, flat-inlined → `qrcodegen` global (share QR)
+import './sync/session.js';       // → syncSession: transport-agnostic bundle exchange + set-union merge
+import './sync/webrtc.js';        // → webrtcOffer/webrtcAnswer: serverless WebRTC channel (QR handshake)
 import './collector/shell.js';   // → mountShell: Forms · Outbox · Settings around the renderer
 import './boot.js';              // creates the store, mounts the shell, registers the SW

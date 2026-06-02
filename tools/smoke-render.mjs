@@ -191,6 +191,29 @@ try {
   await page.locator('.co-confirm').getByRole('button', { name: 'Retract' }).click();
   await page.waitForSelector('.co-empty', { timeout: 3000 });   // tombstone resolves away → outbox empty
 
+  // (d.3) WebRTC loopback — the real transport. Two RTCPeerConnections connect in one
+  // page (SDP passed directly, no QR needed for the transport itself); syncSession runs
+  // over the live DataChannel and unions two fake stores. Proves WebRTC + the merge
+  // protocol end to end before the (camera-only, unsmokeable) QR handshake of 2c.
+  const sync = await page.evaluate(async () => {
+    const mkStore = (rid) => {
+      const recs = [{ id: rid, kind: 'record' }];
+      return {
+        exportBundle: async () => ({ v: 1, streams: {}, forms: {}, records: recs.map((r) => ({ ...r })) }),
+        importBundle: async (b) => { let n = 0; for (const r of (b.records || [])) if (!recs.some((x) => x.id === r.id)) { recs.push(r); n++; } return { streams: 0, forms: 0, records: n, skipped: 0, rejected: 0 }; },
+        count: () => recs.length,
+      };
+    };
+    const A = mkStore('A/0'), B = mkStore('B/0');
+    const offer = await webrtcOffer();
+    const answer = await webrtcAnswer(offer.sdp);
+    const [oc, ac] = await Promise.all([offer.connect(answer.sdp), answer.connect()]);
+    const [ra, rb] = await Promise.all([syncSession(oc.channel, A), syncSession(ac.channel, B)]);
+    oc.close(); ac.close();
+    return { a: A.count(), b: B.count(), aRecv: ra.received.records, bRecv: rb.received.records };
+  });
+  assert.deepEqual(sync, { a: 2, b: 2, aRecv: 1, bRecv: 1 }, 'WebRTC DataChannel sync unioned both records');
+
   // (e) offline: the service worker serves the cached shell for a navigation to
   // the bare origin "/" (not just the exact precached URL) — the durability point
   // of a served PWA. Wait for the SW to control the page, cut the network, reload.
@@ -202,7 +225,7 @@ try {
   await page.context().setOffline(false);
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import, correct/retract, offline shell');
+  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import, correct/retract, WebRTC sync, offline shell');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);
