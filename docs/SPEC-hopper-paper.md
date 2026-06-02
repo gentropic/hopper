@@ -141,10 +141,38 @@ renderer today (auto-form first, per SPEC-hopper-form's auto-layout intent).
 | `geo` (point) | a coordinate **comb**, or a marked point on a map (§7) | comb read, or map-pixel → coordinate |
 | `geotrace` / `geoshape` | a **map sketch zone** (§7) | dewarped, georeferenced raster + optional vectorization |
 | `note` | printed prose | — (not a field) |
+| **free-write page** *(notes / sketch + flags)* | a ruled or blank **write/sketch area** beside a fenced margin of labelled **flag bubbles** (☐ sample · ☐ station · ☐ photo · …) | the area **cropped to an image attachment** (§6b); the margin flags read by **smear-robust OMR** (below), tied to text rows by printed rule-lines |
 | `calc` / `hidden` | printed read-only, or omitted | — (recomputed on ingest from the read values) |
 | `photo` / `audio` / `video` / `file` | a "**capture on device**" note + a per-sheet QR | paper can't hold media; the QR links the sheet to a digital attachment added later |
 | `group` | a titled block | nested zones |
 | `repeat` | **K pre-printed instances** (K a print option) + a **continuation sheet** (own header QR, same sheet-instance id) | bounded cardinality per sheet — an honest constraint (§10) |
+
+### Free-write + margin flags
+
+Geologists *sketch and write*; you can't bubble-ize a field notebook. So the
+free-write page is a hybrid: a ruled/blank **write-or-sketch area** (cropped to an
+image attachment on scan — §6b, no recognition promised) beside a **fenced margin of
+labelled flag bubbles** you fill to *tag* a block — *sample · station · photo-taken ·
+todo · important*. Faint printed rule-lines tie a margin mark to the rows beside it,
+so a scan yields *"lines 5–8 → sample"* alongside the image. Free expression **and**
+light machine-readable structure — the same honest seam as the rest of §6. (On screen
+this is just a notes field with tags; paper is the other renderer backend drawing it.)
+
+**The marks must not be smudge-able into false positives** (a pen-drag, a coffee ring,
+a shadow across the margin must not read as "flagged"). Defenses, layered:
+
+- **Deliberate ink, not mere darkness** — threshold on **fill *fraction* inside the
+  printed cell**; a real mark is high-coverage and *contained*, a smudge is diffuse and
+  bleeds past the box (subtract the printed box; ink must live inside it).
+- **Spatial smear rejection** — print **tick-fences between cells**; a horizontal smear
+  or ring crosses many cells ≈ equally (a *smear signature* → reject + flag), whereas
+  one contained high-fill cell amid clean neighbours is a real mark.
+- **Guard pips** — the mark counts only if small printed anchor pips around it stay
+  *clean*; a smear that fakes the fill also dirties the guards, so it fails.
+- **Calibration-relative threshold** — the §3 wedge defines "deliberate ink on *this*
+  sheet under *this* light," so ambient grey never crosses the bar.
+- **Doubt → review, never silent** — an ambiguous flag goes to the §5 review step, like
+  every other low-confidence read.
 
 ## 5. The read pipeline (offline, in-browser)
 
@@ -396,6 +424,44 @@ a cropped image to type up later, the outcrop sketch saved as a georeferenced
 overlay. Constraints re-run on ingest; the surveyor reviews two low-confidence
 digits, commits, and the records are signed (attested by the camp phone) and queued
 in the outbox — never single-copy, ready to sync when signal returns.
+
+---
+
+## 13. Printed editions — notebooks & binders
+
+The layout engine (§3) emits **print-ready editions**, not just one-off sheets: a
+**GCU field notebook** whose pages are pre-printed Hopper sheets (sample log, free-
+write + flags, a map-sketch section, …), generated from a chosen form set and frozen
+as an **edition** (a snapshot of those forms + their capsules). Bind it; print a run;
+optionally on waterproof stock (the Rite-in-the-Rain lineage). It's an artifact you
+own and carry — and its **back cover boots the software**: print the form **capsules**
+there (§8 paper-as-capsule), plus the project/registry capsule, the edition id, a
+"how to scan" strip, and a **fiducial calibration target** (the §4.3 / Portal target).
+Open a fresh notebook, scan the back, and the digital forms load with **no network**.
+
+**Not new, but inverted.** Moleskine's Evernote Smart Notebook and Rocketbook proved
+the idea — and proved the anti-pattern: the notebook was a *funnel into a walled cloud
+subscription*, the structure proprietary, the data rented. The GCU edition inverts the
+topology: **owned, no server, no rent, host-it-yourself**; the back cover loads *open*
+forms into a single-file app that works offline and outlives the notebook. Same object,
+opposite ownership — which is the whole GCU thesis in a thing you can pocket.
+
+**The binder edition** unlocks physical composition (the same compose-from-parts move,
+in atoms):
+- **Mix and reorder form sections** for the trip; **continuation sheets become the
+  paper answer to repeat cardinality** (§4) — run out of sample rows, add a page.
+- **Tabbed capsule dividers** — each section's tab carries its form's capsule (a paper
+  *menu* of capsule-loadable surfaces — the cousin of `cradle`'s dispatcher).
+- **Reference inserts** — Munsell/grain charts, a scale bar with calibration ticks, the
+  §6a recommended-hand exemplar — field reference + capture device in one binder.
+- **The rigid cover doubles as a flat, fiducial-cornered scanning mat** — exactly the
+  flat known surface the dewarp (§5) wants.
+
+Honest note: a printed edition is a **physical print product** (a run, binding, stock),
+a different kind of "ship" than software — but the *design* (page templates, the back-
+cover capsule sheet, the flag margins, the calibration target) all falls out of the one
+layout engine. GCU "publishes a notebook" = generate the print-ready PDF from the form
+set, send it to a printer.
 
 ---
 
