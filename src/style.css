@@ -139,6 +139,10 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .co-rec-state.warn { color: #B8860B; border: 1px solid #B8860B; }
 .co-rec-att { font-size: .8rem; }
 .co-rec-kind { font-family: var(--au-mono); font-size: .68rem; color: var(--au-muted); }
+.co-rec-acts { display: inline-flex; gap: .35rem; }
+.co-rec-act { font: inherit; font-size: .68rem; padding: .1rem .45rem; border: 1px solid var(--au-border); border-radius: 5px; background: none; color: var(--au-muted); cursor: pointer; }
+.co-rec-act:hover { color: var(--au-text); border-color: var(--au-action); }
+.co-btn.co-danger { background: #C8443B; }   /* fault */
 .co-actions { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; }
 
 .co-btn { font: inherit; font-size: .85rem; padding: .5rem .9rem; border: none; border-radius: 6px; background: var(--au-action); color: #fff; cursor: pointer; }

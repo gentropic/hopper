@@ -163,6 +163,25 @@ try {
   await nav('Forms').click();
   await page.locator('.co-formrow', { hasText: 'Imported Peer Form' }).waitFor({ timeout: 3000 });
 
+  // (d.2) corrections — resolved on read (§5/§9). Correct the demo record (form
+  // re-opens pre-filled → a correction supersedes it), then retract it (tombstone).
+  await nav('Outbox').click();
+  await page.locator('.co-rec').first().waitFor({ timeout: 3000 });
+  await page.locator('.co-rec-act', { hasText: 'correct' }).first().click();
+  await page.waitForSelector('.hf-form', { timeout: 3000 });
+  await page.locator('.co-flash', { hasText: 'Correcting' }).waitFor({ timeout: 2000 });
+  const siteInput = page.locator('.hf-field').filter({ hasText: 'Site ID' }).locator('input');
+  assert.equal(await siteInput.inputValue(), 'QF-SMOKE', 'correction form pre-filled with the record values');
+  await siteInput.fill('QF-FIXED');
+  await page.getByRole('button', { name: 'Save record' }).click();
+  // back on the Outbox, the resolved head is flagged "corrected" (the durable proof
+  // the correction saved + superseded + resolved — robust to transient toast stacking)
+  await page.locator('.co-rec-kind', { hasText: 'corrected' }).waitFor({ timeout: 3000 });
+
+  await page.locator('.co-rec-act', { hasText: 'retract' }).first().click();
+  await page.locator('.co-confirm').getByRole('button', { name: 'Retract' }).click();
+  await page.waitForSelector('.co-empty', { timeout: 3000 });   // tombstone resolves away → outbox empty
+
   // (e) offline: the service worker serves the cached shell for a navigation to
   // the bare origin "/" (not just the exact precached URL) — the durability point
   // of a served PWA. Wait for the SW to control the page, cut the network, reload.
@@ -174,7 +193,7 @@ try {
   await page.context().setOffline(false);
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import, offline shell');
+  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import, correct/retract, offline shell');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

@@ -9,7 +9,7 @@
 import { generateStreamKey } from '../records/crypto.js';
 import { streamId, contentAddress, bytesToB64Url } from '../records/address.js';
 import { canonicalize } from '../records/jcs.js';
-import { makeRecord, verifyRecord } from '../records/envelope.js';
+import { makeRecord, verifyRecord, resolve } from '../records/envelope.js';
 
 const encStr = (s) => new TextEncoder().encode(s);   // distinct name (flat build: one shared scope)
 const dirname = (p) => p.slice(0, p.lastIndexOf('/')) || '/';
@@ -100,19 +100,23 @@ export function createStore(backend) {
     return out;
   }
 
-  // Records annotated for the Outbox: their counter, whether a copy exists
-  // off-device (folder mirror auto-backs-up everything; export covers records up
-  // to its mark), and whether they carry attachments. Honest about sync state —
-  // network sync isn't built yet, so "backed up" means folder/export, not "sent".
+  // Records annotated for the Outbox — the *effective* records (corrections/tombstones
+  // resolved on read, §5/§9): a corrected record shows its latest head, a retracted one
+  // drops out entirely. Each carries its counter, whether a copy exists off-device
+  // (folder mirror auto-backs-up everything; export covers records up to its mark),
+  // whether it carries attachments, and whether it's a correction (supersedes another).
+  // Honest about sync state — network sync isn't built yet, so "backed up" means
+  // folder/export, not "sent".
   async function recordsView() {
     const m = await readJSON('/export-meta.json');
     const exportedThrough = (m && m.count) || 0;
-    return (await listRecords()).map((r) => {
+    return resolve(await listRecords()).map((r) => {
       const counter = Number(String(r.id).split('/')[1]);
       return {
         ...r, counter,
         backedUp: !!mirror || counter < exportedThrough,
         hasAttachments: !!(r.attachments && Object.keys(r.attachments).length),
+        corrected: !!r.supersedes,
       };
     });
   }

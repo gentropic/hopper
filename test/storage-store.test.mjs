@@ -185,6 +185,28 @@ test('store: importBundle rejects a tampered record', async () => {
   assert.equal((await B.exportBundle()).records.length, 0, 'nothing leaked into the repo');
 });
 
+test('store: recordsView resolves corrections (head wins) + tombstones (dropped)', async () => {
+  const store = createStore(new MemoryBackend());
+  const id = await store.init();
+  const fh = await store.putForm(FORM);
+  const a = await store.saveRecord({ form: fh, values: { site_id: 'A' } });   // #0
+  const b = await store.saveRecord({ form: fh, values: { site_id: 'B' } });   // #1
+  await store.saveRecord({ form: fh, values: { site_id: 'A-fixed' }, kind: 'correction', supersedes: a.id });   // #2 corrects #0
+  await store.saveRecord({ form: fh, values: {}, kind: 'tombstone', supersedes: b.id });                        // #3 retracts #1
+
+  const view = await store.recordsView();
+  // A's chain resolves to its correction head; B is retracted entirely → one effective record
+  assert.equal(view.length, 1, 'four appended → one effective (A corrected, B retracted)');
+  assert.equal(view[0].values.site_id, 'A-fixed', 'correction head replaces the original');
+  assert.equal(view[0].corrected, true, 'correction head flagged corrected');
+  assert.equal(view.some((r) => r.id === a.id || r.id === b.id), false, 'superseded original + tombstoned record both hidden');
+
+  // every appended object still exists in the log + exports (append-only durability)
+  assert.equal((await store.listRecords()).length, 4, 'log keeps all four objects');
+  assert.equal((await store.exportBundle()).records.length, 4, 'export carries the full history');
+  assert.equal(store.count(), 4, 'counter counts appended objects, not effective');
+});
+
 test('store: identity + counter persist across reload (same backend)', async () => {
   const backend = new MemoryBackend();
   const s1 = createStore(backend);

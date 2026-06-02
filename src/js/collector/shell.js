@@ -134,6 +134,40 @@ async function shareForm(tree) {
   document.body.append(scrim);
 }
 
+// Generic confirm overlay (retract, etc.) → Promise<bool>.
+function confirmDialog({ title, body, ok = 'OK', danger = false }) {
+  return new Promise((res) => {
+    const scrim = ce('div', 'co-scrim');
+    const panel = ce('div', 'co-confirm');
+    panel.append(ce('h3', 'co-confirm-h', title));
+    if (body) panel.append(ce('div', 'co-confirm-meta', body));
+    const actions = ce('div', 'co-confirm-actions');
+    const cancel = ce('button', 'co-btn co-ghost', 'Cancel');
+    const okb = ce('button', 'co-btn' + (danger ? ' co-danger' : ''), ok);
+    const done = (v) => { scrim.remove(); res(v); };
+    cancel.addEventListener('click', () => done(false));
+    okb.addEventListener('click', () => done(true));
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) done(false); });
+    actions.append(cancel, okb); panel.append(actions); scrim.append(panel);
+    document.body.append(scrim);
+  });
+}
+
+// Populate a fresh form from a values map (the inverse of form.values()) — for
+// correcting a record. Scalars via set(); repeats by re-adding instances; calc is
+// recomputed (ignored); media lives in attachments (carried forward), not values.
+function applyValues(form, values) {
+  const repeats = new Set(form.repeatNames ? form.repeatNames() : []);
+  for (const [k, val] of Object.entries(values || {})) {
+    if (repeats.has(k)) {
+      if (Array.isArray(val)) for (const instVals of val) {
+        const inst = form.repeat(k).add();
+        for (const [ck, cv] of Object.entries(instVals || {})) { const cell = inst.children.get(ck); if (cell) cell.set(cv); }
+      }
+    } else { form.set(k, val); }
+  }
+}
+
 // A small seed form so a fresh install has something to fill (idempotent: same
 // hash on every boot). Real forms arrive via the add-form sources (§1).
 const SEED_FORM = {
@@ -215,7 +249,8 @@ export async function mountShell(store, root) {
   }
   async function refreshChrome() {
     const s = await store.status();
-    navOutbox.textContent = s.recordCount ? `Outbox (${s.recordCount})` : 'Outbox';
+    const effective = (await store.recordsView()).length;   // resolved records — matches the Outbox list
+    navOutbox.textContent = effective ? `Outbox (${effective})` : 'Outbox';
     if (s.unbackedUp > 0) {
       warn.hidden = false; warn.dataset.unbacked = String(s.unbackedUp);
       warn.textContent = `⚠ ${s.unbackedUp} record${s.unbackedUp === 1 ? '' : 's'} exist only on this device — back up or sync`;
@@ -357,15 +392,28 @@ export async function mountShell(store, root) {
   function viewFill() {
     const v = ce('section', 'co-view');
     const head = ce('div', 'co-fillhead');
-    const back = ce('button', 'co-back', '‹'); back.setAttribute('aria-label', 'back'); back.addEventListener('click', () => go('forms'));
+    const correcting = current.correcting;
+    const back = ce('button', 'co-back', '‹'); back.setAttribute('aria-label', 'back'); back.addEventListener('click', () => go(correcting ? 'outbox' : 'forms'));
     const shareBtn = ce('button', 'co-share-btn', '⤴ Share'); shareBtn.type = 'button';
     shareBtn.addEventListener('click', () => shareForm(current.tree).catch((e) => toast('Could not build share: ' + e.message)));
     head.append(back, ce('div', 'co-filltitle', (current.tree.meta && current.tree.meta.title) || 'Form'), shareBtn);
     v.append(head);
+    if (correcting) v.append(ce('div', 'co-flash', `Correcting #${shortId(correcting.id)} — save to supersede it`));
     if (fillFlash) { v.append(ce('div', 'co-flash', fillFlash)); fillFlash = ''; }
     const host = ce('div'); v.append(host);
 
-    renderForm(createForm(current.tree), host, async (values, attachments) => {
+    const form = createForm(current.tree);
+    if (correcting) applyValues(form, correcting.values);     // pre-fill from the record being corrected
+
+    renderForm(form, host, async (values, attachments) => {
+      if (correcting) {
+        // append a correction superseding the original; carry forward its attachments, overlay any re-captured
+        const rec = await store.saveRecord({ form: current.hash, values, attachments: { ...(correcting.attachments || {}), ...(attachments || {}) }, kind: 'correction', supersedes: correcting.id });
+        current.correcting = null;
+        await go('outbox');
+        toast(`✓ correction saved — #${shortId(correcting.id)} superseded`);
+        return rec;
+      }
       const rec = await store.saveRecord({ form: current.hash, values, attachments });
       fillFlash = `✓ saved — #${shortId(rec.id)} queued in Outbox`;
       await render();                          // fresh form for the next record + the flash
@@ -382,6 +430,24 @@ export async function mountShell(store, root) {
     const recs = await store.recordsView();
     const forms = await store.listForms();
     const titleByHash = Object.fromEntries(forms.map((f) => [f.hash, f.title]));
+    const formByHash = Object.fromEntries(forms.map((f) => [f.hash, f]));
+
+    // re-open the form pre-filled with this record's values; saving appends a
+    // correction that supersedes it (resolved on read — §5/§9).
+    function onCorrect(r) {
+      const f = formByHash[r.form];
+      if (!f) { toast('That form isn’t loaded — add it to correct this record.'); return; }
+      current = { tree: f.tree, hash: f.hash, correcting: { id: r.id, values: r.values, attachments: r.attachments || {} } };
+      fillFlash = '';
+      go('fill');
+    }
+    // append a tombstone — append-only: the record stays in the log but drops from view.
+    async function onRetract(r) {
+      const ok = await confirmDialog({ title: 'Retract this record?', body: `#${shortId(r.id)} will be tombstoned — append-only, so it stays in the signed log but drops from your outbox. Reversible with another correction.`, ok: 'Retract', danger: true });
+      if (!ok) return;
+      await store.saveRecord({ form: r.form, values: {}, kind: 'tombstone', supersedes: r.id });
+      await render();
+    }
 
     if (!recs.length) {
       v.append(ce('p', 'co-empty', 'No records yet — fill a form to collect one, or import an archive below.'));
@@ -397,7 +463,11 @@ export async function mountShell(store, root) {
           const state = ce('span', 'co-rec-state ' + (r.backedUp ? 'ok' : 'warn'), r.backedUp ? 'backed up' : 'on device only');
           row.append(state);
           if (r.hasAttachments) row.append(ce('span', 'co-rec-att', '📎'));
-          if (r.kind && r.kind !== 'record') row.append(ce('span', 'co-rec-kind', r.kind));
+          if (r.corrected) row.append(ce('span', 'co-rec-kind', 'corrected'));
+          const acts = ce('span', 'co-rec-acts');
+          const cor = ce('button', 'co-rec-act', 'correct'); cor.type = 'button'; cor.addEventListener('click', () => onCorrect(r));
+          const ret = ce('button', 'co-rec-act', 'retract'); ret.type = 'button'; ret.addEventListener('click', () => onRetract(r));
+          acts.append(cor, ret); row.append(acts);
           v.append(row);
         }
       }
