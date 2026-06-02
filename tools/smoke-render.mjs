@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+import * as XLSX from '../vendor/sheetjs.mjs';
+import { treeToXlsform } from '../src/js/xlsform/index.js';
 
 const url = pathToFileURL(resolve('collector.html')).href;
 const browser = await chromium.launch();
@@ -55,8 +57,19 @@ try {
   await page.waitForFunction(() => document.querySelector('.hf-app h1')?.textContent === 'QF Sample Log', undefined, { timeout: 3000 });
   assert.ok((await page.getByText('Lithology').count()) >= 1, 'loaded form fields render');
 
+  // load an actual .xlsx (bundled SheetJS parses it in-browser → re-render)
+  const t = { type: 'form', meta: { id: 'imp', title: 'Imported XLSForm', version: '1', lang: 'en' }, fields: [{ name: 'station', fieldType: 'text', label: 'Station', props: {} }], choices: {}, rules: [], views: [] };
+  const { survey, settings } = treeToXlsform(t);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(survey), 'survey');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(settings), 'settings');
+  const buffer = Buffer.from(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  await page.locator('input[type="file"]').setInputFiles({ name: 'imported.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer });
+  await page.waitForFunction(() => document.querySelector('.hf-app h1')?.textContent === 'Imported XLSForm', undefined, { timeout: 3000 });
+  assert.ok((await page.getByText('Station').count()) >= 1, 'xlsx-loaded field renders');
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ renderer smoke passed — form, relevance, repeat+aggregate, constraint, save→sign→IDB, durability, load-form');
+  console.log('✓ renderer smoke passed — collect→sign→IDB, durability, load yaml + xlsx');
   await browser.close();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

@@ -50,8 +50,16 @@ path (shared raw-key encoding, cross-verified signatures) is pinned by
 **Re-pinning** is a deliberate, reviewed act: re-`npm pack` the new version, read
 the diff, replace the file, and update version + both hashes above.
 
-**Vendored so far:** `sideact.js`, `vfs.js` (both from `../auditable/ext/*` via
-`node tools/sync-vendor.mjs`), and `noble-ed25519.js` (pinned npm, §ed25519 below).
+**Vendored so far:** `sideact.js`, `vfs.js`, `yaml.js` (from `../auditable/ext/*`
+via `node tools/sync-vendor.mjs`); `noble-ed25519.js` and `sheetjs.mjs` (pinned
+npm — see below).
+
+**`sheetjs.mjs`** — `xlsx@0.18.5` (SheetJS Community, Apache-2.0), `package/xlsx.mjs`
+(self-contained ESM, ~896 kB), `sha256-mS7sjBqIjn9smyo8u6AUvtreRz2ky9j8m7ld5WqH8iI`,
+LICENSE in `vendor/sheetjs.LICENSE`. The `.xlsx` form source (ODK on-ramp).
+**Currently bundled** (namespace-wrapped) → the collector is ~1.1 MB; a known
+**lazy-load** optimization (serve it as a SW-cached chunk, import on first xlsx)
+is deferred — see CLAUDE.md.
 
 Each file added here gets a row in `vendor-licenses.json` (to be created) with
 its license + source commit, mirroring `weir/vendor-licenses.json`.

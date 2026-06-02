@@ -6,6 +6,7 @@ import { createForm } from './renderer/state.js';
 import { renderForm } from './renderer/render.js';
 import { createStore } from './storage/store.js';
 import { loadFormByName } from './formsource/load.js';
+import { loadXlsx } from './formsource/xlsx.js';
 import * as vfs from '../../vendor/vfs.js';
 
 const DEMO = {
@@ -69,7 +70,7 @@ async function setup() {
   const h1 = mk('h1'); main.append(h1);
   const bar = mk('div', 'hf-toolbar');
   const fileLabel = mk('label', 'hf-load'); fileLabel.textContent = 'Load form ';
-  const fileInput = mk('input'); fileInput.type = 'file'; fileInput.accept = '.yaml,.yml,.json';
+  const fileInput = mk('input'); fileInput.type = 'file'; fileInput.accept = '.yaml,.yml,.json,.xlsx';
   fileLabel.append(fileInput); bar.append(fileLabel); main.append(bar);
   const readout = mk('div', 'hf-readout'); main.append(readout);
   const host = mk('div'); main.append(host);
@@ -153,8 +154,13 @@ async function setup() {
   fileInput.addEventListener('change', async () => {
     const f = fileInput.files && fileInput.files[0];
     if (!f) return;
-    try { await loadForm(loadFormByName(f.name, await f.text())); }
-    catch (e) { window.alert('Could not load form: ' + e.message); }
+    try {
+      let tree, warnings = [];
+      if (/\.xlsx$/i.test(f.name)) ({ tree, warnings } = loadXlsx(await f.arrayBuffer()));
+      else tree = loadFormByName(f.name, await f.text());
+      await loadForm(tree);
+      if (warnings.length) console.warn('XLSForm import warnings:', warnings);
+    } catch (e) { window.alert('Could not load form: ' + e.message); }
   });
   await loadForm(DEMO);
 }

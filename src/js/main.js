@@ -23,5 +23,7 @@ import './renderer/render.js';   // → renderForm: engine → DOM
 import * as vfs from '../../vendor/vfs.js';  // VFS backends (namespace-wrapped)
 import './storage/store.js';     // → createStore: signed append-only record store
 import * as yaml from '../../vendor/yaml.js';  // @gcu/yaml (namespace-wrapped)
-import './formsource/load.js';   // → loadFormByName/Text: file → §8 tree
+import './formsource/load.js';   // → loadFormByName/Text: yaml/json → §8 tree
+import * as sheetjs from '../../vendor/sheetjs.mjs';  // SheetJS (bundled, namespace-wrapped)
+import './formsource/xlsx.js';   // → loadXlsx: .xlsx → §8 tree (the ODK on-ramp)
 import './boot.js';              // renders the form + save→store, registers the SW
