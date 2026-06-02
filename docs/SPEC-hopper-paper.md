@@ -515,6 +515,47 @@ mirroring off-ramps (lock-in is the asymmetry); see SPEC-hopper §1. **Cross-rep
 dependency:** this is gated on **`weir` growing note-taking (with image notes)** — a
 sibling-side prerequisite, not Hopper's to build.
 
+### The note-stamp — furniture on demand, BYO-paper
+
+The smallest edition isn't a page at all: a **self-inking pocket stamp** that prints a
+Hopper microform onto *any* paper — a margin, a napkin, a Post-it, an existing
+field-book. More "meet people where they are" than a notebook: you bring the stamp to
+*their* paper. It's also the cheapest Hopper artifact imaginable (~a commodity pocket
+stamp, e.g. a 14×38 mm self-inker, ~4 000 impressions) — and a **neat gift to anyone
+already using a bit of Hopper.** Likely a *soon* build, not a far one.
+
+**Why a stamp works where a stamped QR wouldn't:**
+- **Fixed, data-less die.** A stamp prints the *same thing every time*, so it carries no
+  per-note data — just "this is note-stamp, schema X." The **instance id comes from the
+  scan** (the scanning device authors the record; scanner-attested, §6), so nothing
+  unique need imprint.
+- **ArUco, not QR.** One chunky, high-contrast **ArUco** marker tolerates ink spread far
+  better than a dense QR, **self-identifies** (dictionary id = form id) *and* gives full
+  **plane pose from a single marker**; its solid black/white doubles as the ink-density
+  reference. (QR only earns its place when it must carry a capsule — a fixed-id microform
+  doesn't.) Self-inking pads give the consistent ink rubber-and-hand would ruin.
+
+**The 14×38 mm layout** (landscape header bar): a **~10–12 mm ArUco** at the left (id +
+pose + density reference) and **~22 mm of meta** — a handful (3–5) of **flag bubbles**
+and/or a **2–3-box micro-comb**, positions schema-defined so the die needs no text. The
+*write area* is the host paper around it, positioned relative to the stamped frame. Two
+usage modes (this is how the marker "defines the area"):
+
+- **Header-bar (one impression)** — stamp once, write below; the single ArUco deskews +
+  crops the region beneath → image attachment + meta flags. Atomic. Honest limit: a small
+  single marker pins pose well *near* it and degrades with distance — a deskewed crop, not
+  metric rectification (fine for a note).
+- **Bracket (two impressions)** — stamp top-left + bottom-right of any region → 4 spread
+  corners → a proper homography over an arbitrary-size note; a meta bubble can flag "this
+  is a bracket" to pair them.
+
+Read path is §5 at microform scale (detect ArUco → id + pose → read meta → deskew/crop
+the write region → a scanner-attested §8 record). Limits are honest: 14 mm is small, so
+the meta is a *few* marks and ~3 mm OMR wants the camera close (the guided multi-frame
+interactive-capture mode, §5, helps a lot). And the payoff: **the layout engine generates
+the die artwork** from a microform definition — "publish a note-stamp" = emit the
+ArUco-id + meta layout sized to 14×38, order the stamp pre-made.
+
 ---
 
 *Geoscientific Chaos Union · spec CC0 · 2026 · single-file*
