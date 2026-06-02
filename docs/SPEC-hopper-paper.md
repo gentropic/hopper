@@ -132,8 +132,35 @@ A scan (live camera frame or an uploaded photo/scan) flows through:
    surfacing low-confidence or constraint-failing fields for **human review before
    commit** — then sign and append it like any other record.
 
-**Batch mode** (Tier 3): point the camera at a *stack*; each page self-identifies
-(header QR) and rectifies (fiducials) independently, so a pile ingests in one pass.
+The pipeline is **mode-agnostic** — the same steps run whether a frame arrives from
+a file or a live camera. Two ingest modes feed it:
+
+### Static import
+Upload a photo or a scan — a real **flatbed/feed scanner's** output, a gallery photo,
+a desktop with no camera. One frame in, one record out. Always available; the
+baseline, and the only option where there's no usable camera.
+
+### Interactive capture — camera as scanner
+Put the sheet under a phone or webcam and the app runs a **live guidance loop** — the
+*same* `requestAnimationFrame` detect loop the `barcode`/QR scanner already uses
+(`renderer/scan.js`), extended to track the four corner fiducials each frame and
+score readiness. It turns "did I get a good scan?" — a static gamble discovered
+*later* — into a **correctable real-time loop**:
+
+- an **alignment overlay** locks to the fiducials; live prompts nudge the user —
+  *move closer · hold steady · glare on the calibration strip · tilt down · sheet not
+  fully in frame*;
+- **auto-shutter** fires only when the frame is square, sharp, evenly lit, and all
+  fiducials + the header QR are found — no button-mashing, no blurry capture;
+- because live mode sees **many frames, not one**, it can **fuse** them — keep the
+  sharpest crop per zone and **majority-vote marks/glyphs across frames** — so it can
+  be *more* reliable than a single flatbed pass, not less;
+- **immediate feedback**: recognized marks light up and low-confidence digits flash
+  for review *while the sheet is still in hand*, so a doubtful cell is re-checked on
+  the spot, not after filing;
+- **batch flow**: on a good ingest it says *✓ — next sheet*; feed a pile one after
+  another. Each page self-identifies (header QR) and rectifies (fiducials)
+  independently (Tier 3), so the camera becomes a human-paced sheet-feeder.
 
 ## 6. Text & handwriting — the honest seam
 
@@ -264,6 +291,9 @@ Named, not hidden (SPEC-hopper invariant #6):
   instances + continuation sheets (§4).
 - **Media fields can't live on paper** — photo/audio/file are captured on a device;
   paper only links to them (§4).
+- **Interactive capture is a progressive enhancement** — static import (incl. a real
+  flatbed/feed scanner) is always the baseline; live camera-as-scanner needs a camera
+  + a secure context (served/installed, which Hopper already requires — §collector 6).
 - **Provenance widens** — paper records are *attested by the scanner*, not signed by
   the filler (§6).
 
@@ -272,8 +302,10 @@ Named, not hidden (SPEC-hopper invariant #6):
 Rides on what Hopper already has: **qrcodegen** (print the header QR; already
 vendored), **BarcodeDetector** (decode header QR + fiducials; already used),
 **canvas 2D** (homography rectification + zone sampling), the **§8 tree** (layout +
-read schema), **content-addressed blobs** (crop-and-attach; map rasters), and the
-**positional codec** (shared with QR/chirp). Layout generation emits **SVG/PDF** at
+read schema), **content-addressed blobs** (crop-and-attach; map rasters), the
+**positional codec** (shared with QR/chirp), and — for interactive capture — the
+renderer's **`startBarcodeScan` rAF loop** (`renderer/scan.js`), extended to per-frame
+fiducial tracking + a readiness score (getUserMedia, already a secure-context path). Layout generation emits **SVG/PDF** at
 fixed coordinates. Recognition is right-sized to the job (§6): a **small bundled
 digit/box-glyph model** (~100–400 kB, WASM/JS) for combs — light enough to ship by
 default; **`tesseract.js`** only as a heavy, labelled opt-in for general field OCR.
@@ -285,8 +317,9 @@ No server, no native scanner, no cloud.
   not scannable). Immediate utility. *(small)*
 - **Tier 1 — Smart paper (v1 target).** The fixed-geometry layout engine + header
   QR + corner fiducials + calibration wedge + OMR/comb zones + **text crop-and-
-  attach** (§6b) + the read pipeline (§5) with human-review-before-commit.
-  Deterministic, offline, **no recognition model**. This is the headline capability.
+  attach** (§6b) + the read pipeline (§5) with human-review-before-commit, fed by
+  **static import** (a photo / a real flatbed/feed scanner). Deterministic, offline,
+  **no recognition model**. This is the headline capability.
 - **Tier 2 — Boxed-glyph recognition.** The small bundled CNN for combs (§6a):
   per-cell classification, confidence-flagged review, clean box-subtracted glyph
   extraction, constraint/check-digit backstop, and the printed recommended-hand
@@ -294,7 +327,12 @@ No server, no native scanner, no cloud.
   capitals A–Z a stretch** (EMNIST-class — more confusable, leans on per-cell
   alphabet restriction + the exemplar). Light enough (~100–400 kB) either way — the
   cost of the alphabet is accuracy, not bytes. Lowercase/cursive stay in (b).
-- **Tier 3 — Batch dewarp.** Photograph a stack; per-page self-identify + rectify.
+- **Tier 2.5 — Interactive capture.** The live camera-as-scanner mode (§5): alignment
+  overlay, guidance prompts, auto-shutter, and multi-frame fusion (sharpest-crop +
+  cross-frame vote — an accuracy booster only live mode enables). Layers on Tier 1's
+  pipeline; degrades to static import where there's no camera.
+- **Tier 3 — Batch dewarp.** Feed a stack ("✓ — next sheet"); per-page self-identify
+  + rectify. Pairs with interactive capture's batch flow.
 - **Tier 4 — Research.** Map sketch → georeferenced raster (§7); paper-as-carrier
   and records-on-paper (§8).
 - **Cross-cutting opt-in (any tier).** General field OCR via bundled `tesseract.js`
