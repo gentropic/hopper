@@ -23,6 +23,7 @@ const MAP = [
   [resolve(SIB, 'auditable/ext/vfs/index.js'), 'vfs.js'],           // VFS + IDB/OPFS/Memory backends
   [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],        // @gcu/yaml — form source parse
   [resolve(SIB, 'capsule/dist/capsule.js'), 'capsule.js'],         // @gcu/capsule — SELF-CONTAINED ESM bundle
+  [resolve(SIB, 'capsule/vendor/qrcodegen.js'), 'qrcodegen.js'],   // Nayuki QR gen (MIT) — classic global script, FLAT-inlined
 ];
 
 mkdirSync(resolve(ROOT, 'vendor'), { recursive: true });

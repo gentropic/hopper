@@ -19,6 +19,7 @@ bundler) was rejected to preserve the single-file, zero-supply-chain ethos
 | `vfs.js`       | `../auditable/ext/vfs` (`@gcu/vfs`) | IDB/OPFS/comment storage backends |
 | `capsule.js`   | `../capsule` (`@gcu/capsule`)     | form-source transport: `resolve` a capsule/URL → form-def bytes; `encodeInline`/`fragmentEncode` (share, soon) |
 | `switchboard/` | `../auditable/ext/switchboard`    | design tokens (CSS) |
+| `qrcodegen.js` | Nayuki QR generator (MIT), via `../capsule/vendor` | render a share QR for a form capsule (outbound) |
 | `ggwave.*`     | upstream `ggwave` (MIT, WASM)     | data-over-sound sync fallback (bundled, §5.5) |
 | `sheetjs.*`    | SheetJS (community build)         | xlsx import/export for the converter |
 | `noble-ed25519.js` | `@noble/ed25519` (MIT, paulmillr) | Ed25519 **fallback** when the browser lacks Web Crypto Ed25519 |
@@ -60,6 +61,13 @@ verifiable upstream via `npm run build:check`). Self-contained, zero runtime dep
 (uses native `CompressionStream` deflate-raw — Node ≥20.12 / modern browsers),
 `sha256-oWIkydaEJz74hk8G86VTZog0vsuULo890-p82qP2K4s`. We import the bundle, **not**
 `src/index.js` (which is multi-file). Build namespace-wraps it (`import * as capsule`).
+
+**`qrcodegen.js`** — Project Nayuki's QR generator (MIT, vendored verbatim from
+`../capsule/vendor/qrcodegen.js`), `sha256-JRG8F_QKPEHUoFeJlduVaziZczTT0gETpdTcXEnGlIA`.
+Used to render the outbound *share* QR. Unlike the ESM libs it is a **classic
+global-setting script** (`var qrcodegen; (function(qrcodegen){…})(…)`), so it is
+**flat-inlined** (a side-effect `import` in the manifest → a shared `qrcodegen`
+global), **not** namespace-wrapped. The license is inline in the file header.
 
 **`sheetjs.mjs`** — `xlsx@0.18.5` (SheetJS Community, Apache-2.0), `package/xlsx.mjs`
 (self-contained ESM, ~896 kB), `sha256-mS7sjBqIjn9smyo8u6AUvtreRz2ky9j8m7ld5WqH8iI`,

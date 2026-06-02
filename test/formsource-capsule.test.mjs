@@ -46,3 +46,16 @@ test('resolveFormCapsule: non-form payload rejects clearly', async () => {
   const cap = await capsule.encodeInline(JSON.stringify({ hello: 'world' }), { form: 'i' });
   await assert.rejects(() => resolveFormCapsule(cap), /not a Hopper form/);
 });
+
+// the outbound↔inbound contract: what `shareForm` builds (makeShare → URL) must
+// resolve back to the same tree (what the shell consumes on open / paste).
+test('share round-trip: makeShare → share URL → resolveFormCapsule → same tree', async () => {
+  const base = 'https://gentropic.org/hopper/';
+  const share = await capsule.makeShare(JSON.stringify(FORM), { form: 'q', baseUrl: base });
+  assert.match(share.capsule, /^q:/, 'q: form (QR-dense) as shareForm uses');
+  assert.ok(share.urlBytes > 0 && Array.isArray(share.fits), 'measured for channel fit');
+  const url = base + '#' + share.fragment;
+  const tree = await resolveFormCapsule(url);
+  assert.equal(tree.meta.id, 'cap');
+  assert.equal(tree.fields[0].name, 'q');
+});

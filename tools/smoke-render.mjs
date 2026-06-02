@@ -133,8 +133,20 @@ try {
   await page.locator('.co-confirm').getByRole('button', { name: 'Add form' }).click();
   await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Capsule Form', undefined, { timeout: 3000 });
 
+  // (c) share OUT: from the form's Fill header → QR + copy-link; the link round-
+  // trips back through the inbound auto-resolve (generate → open → confirm → add)
+  await page.locator('.co-share-btn').click();
+  await page.waitForSelector('.co-share .co-qr', { timeout: 3000 });   // QR rendered (Nayuki, flat-inlined)
+  const shareUrl = await page.locator('.co-share-url').inputValue();
+  assert.ok(/#/.test(shareUrl) && shareUrl.length > 20, 'share URL carries a #fragment capsule');
+  await page.goto(shareUrl);
+  await page.reload();                                                 // open the shared link → auto-resolve
+  await page.waitForSelector('.co-confirm', { timeout: 3000 });
+  await page.locator('.co-confirm').getByRole('button', { name: 'Add form' }).click();
+  await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Capsule Form', undefined, { timeout: 3000 });
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, inbound capsule (link + paste)');
+  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, inbound capsule + share round-trip');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

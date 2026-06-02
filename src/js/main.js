@@ -18,6 +18,7 @@ import './records/envelope.js';  // → makeRecord, verifyRecord, correct, tombs
 import './rules/eval.js';        // → parse, evaluate, evalBool, constraintValid, deps (SPEC-hopper-rules)
 import './xlsform/index.js';     // → xlsformToTree, treeToXlsform (+ bridge) — SPEC-hopper-form §9
 import * as sideact from '../../vendor/sideact.js';  // reactive signals (namespace-wrapped)
+import './renderer/scan.js';     // → startBarcodeScan: getUserMedia + BarcodeDetector (barcode field + Scan-QR)
 import './renderer/state.js';    // → createForm: tree → reactive engine
 import './renderer/render.js';   // → renderForm: engine → DOM
 import * as vfs from '../../vendor/vfs.js';  // VFS backends (namespace-wrapped)
@@ -28,5 +29,6 @@ import * as sheetjs from '../../vendor/sheetjs.mjs';  // SheetJS (bundled, names
 import './formsource/xlsx.js';   // → loadXlsx: .xlsx → §8 tree (the ODK on-ramp)
 import * as capsule from '../../vendor/capsule.js';  // @gcu/capsule (bundled ESM, namespace-wrapped)
 import './formsource/capsule.js'; // → resolveFormCapsule: capsule/URL → §8 tree (SPEC-collector §1)
+import '../../vendor/qrcodegen.js'; // Nayuki QR gen — classic global script, flat-inlined → `qrcodegen` global (share QR)
 import './collector/shell.js';   // → mountShell: Forms · Outbox · Settings around the renderer
 import './boot.js';              // creates the store, mounts the shell, registers the SW

@@ -4,6 +4,7 @@
 // add/remove. Relevance hides; validity shows errors; calc/aggregates display.
 
 import * as sideact from '../../../vendor/sideact.js';
+import { startBarcodeScan } from './scan.js';
 const { effect } = sideact;
 
 const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
@@ -207,32 +208,4 @@ function barcodeWidget(getV, setV) {
     box.append(scan);
   }
   return box;
-}
-
-// Open the camera, poll BarcodeDetector each frame, fire onCode on the first hit
-// then tear down. Returns a handle so the caller can stop a running scan; onEnd
-// fires on any termination (hit, manual stop, or failure) so the UI can reset.
-async function startBarcodeScan(box, btn, onCode, onEnd) {
-  let stream = null, raf = 0, ended = false;
-  const video = document.createElement('video'); video.className = 'hf-scan-video';
-  video.setAttribute('playsinline', ''); video.muted = true;
-  const stop = () => {
-    if (ended) return; ended = true;
-    if (raf) cancelAnimationFrame(raf);
-    if (stream) for (const t of stream.getTracks()) t.stop();
-    video.remove(); btn.textContent = '📷 Scan'; onEnd();
-  };
-  try {
-    const detector = new window.BarcodeDetector();
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = stream; box.append(video); await video.play();
-    btn.textContent = '◼ stop';
-    const tick = async () => {
-      if (ended) return;
-      try { const codes = await detector.detect(video); if (codes.length) { onCode(codes[0].rawValue); stop(); return; } } catch {}
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-  } catch { stop(); }
-  return { stop };
 }

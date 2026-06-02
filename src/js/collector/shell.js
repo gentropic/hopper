@@ -8,9 +8,11 @@
 
 import { createForm } from '../renderer/state.js';
 import { renderForm } from '../renderer/render.js';
+import { startBarcodeScan } from '../renderer/scan.js';
 import { loadFormByName } from '../formsource/load.js';
 import { loadXlsx } from '../formsource/xlsx.js';
 import { resolveFormCapsule } from '../formsource/capsule.js';
+import * as capsule from '../../../vendor/capsule.js';
 import * as vfs from '../../../vendor/vfs.js';
 
 // distinct top-level names (flat build = one shared scope; avoid render.js's `el`,
@@ -78,6 +80,58 @@ function confirmAddForm(tree, source) {
     actions.append(cancel, add); panel.append(actions); scrim.append(panel);
     document.body.append(scrim);
   });
+}
+
+// Render a string as a QR (Nayuki qrcodegen, flat-inlined global). SVG so it
+// scales crisply in the single-file artifact. Throws if the data exceeds QR
+// capacity — callers catch and fall back to the copy-link.
+function qrSvg(text) {
+  const QR = globalThis.qrcodegen.QrCode;
+  const qr = QR.encodeText(text, QR.Ecc.MEDIUM);
+  const n = qr.size, b = 2, dim = n + b * 2;
+  let d = '';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (qr.getModule(x, y)) d += `M${x + b} ${y + b}h1v1h-1z`;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${dim} ${dim}`); svg.setAttribute('class', 'co-qr'); svg.setAttribute('shape-rendering', 'crispEdges');
+  const bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', String(dim)); bg.setAttribute('height', String(dim)); bg.setAttribute('fill', '#fff');
+  const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d); path.setAttribute('fill', '#000');
+  svg.append(bg, path);
+  return svg;
+}
+
+// Share a form *out* — the producer for the links/QRs the shell consumes (§1).
+// encodeInline the §8 tree as a `q:` capsule, fragment-encode it into a share URL
+// (the `q:` gotcha — always fragment-encode), render a QR + a copy-link. makeShare
+// gives the URL size + tightest channel fit; the QR degrades to link-only when big.
+async function shareForm(tree) {
+  const base = location.origin + location.pathname;
+  const share = await capsule.makeShare(JSON.stringify(tree), { form: 'q', baseUrl: base });
+  const url = base + '#' + share.fragment;
+
+  const scrim = ce('div', 'co-scrim');
+  const panel = ce('div', 'co-confirm co-share');
+  panel.append(ce('h3', 'co-confirm-h', 'Share this form'));
+  panel.append(ce('div', 'co-confirm-title', (tree.meta && (tree.meta.title || tree.meta.id)) || 'Untitled form'));
+
+  try { const w = ce('div', 'co-qr-wrap'); w.append(qrSvg(url)); panel.append(w); }
+  catch { panel.append(ce('div', 'co-share-toobig', '⚠ Too large to scan as a QR — use the link below.')); }
+
+  const linkRow = ce('div', 'co-share-link');
+  const input = ce('input', 'co-share-url'); input.readOnly = true; input.value = url;
+  const copy = ce('button', 'co-btn', 'Copy link');
+  copy.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(url); copy.textContent = 'Copied ✓'; setTimeout(() => { copy.textContent = 'Copy link'; }, 1500); }
+    catch { input.select(); }
+  });
+  linkRow.append(input, copy); panel.append(linkRow);
+  panel.append(ce('div', 'co-confirm-meta', `${share.urlBytes} B · ${share.tightestFit ? 'fits ' + share.tightestFit : 'link only'}`));
+
+  const actions = ce('div', 'co-confirm-actions');
+  const close = ce('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
+  scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
+  actions.append(close); panel.append(actions); scrim.append(panel);
+  document.body.append(scrim);
 }
 
 // A small seed form so a fresh install has something to fill (idempotent: same
@@ -241,10 +295,23 @@ export async function mountShell(store, root) {
     paste.append(ta, resolveBtn, perr);
     sheet.append(paste);
 
-    // QR camera scan lands with the share (outbound) slice — its natural producer.
-    const scan = ce('div', 'co-source co-soon');
-    scan.append(ce('span', null, '▦ Scan QR'), ce('span', 'co-source-d', 'camera → capsule · (soon)'));
-    sheet.append(scan);
+    // scan a QR (camera → capsule). Paste stays the floor where BarcodeDetector
+    // is absent (Firefox/Safari); the decoded string flows through resolve+confirm.
+    const hasScanner = typeof window !== 'undefined' && 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    const scanWrap = ce('div', 'co-source');
+    scanWrap.append(ce('span', null, '▦ Scan QR'), ce('span', 'co-source-d', hasScanner ? 'camera → capsule' : 'camera not available — paste above'));
+    if (hasScanner) {
+      const scanBtn = ce('button', 'co-btn', '📷 Scan'); scanBtn.type = 'button';
+      let session = null;
+      scanBtn.addEventListener('click', async () => {
+        if (session) { session.stop(); return; }
+        session = await startBarcodeScan(scanWrap, scanBtn,
+          async (val) => { try { await onResolveCapsule(val, 'a scanned QR'); } catch (e) { toast('Could not resolve QR: ' + e.message); } },
+          () => { session = null; }, ['qr_code']);
+      });
+      scanWrap.append(scanBtn);
+    } else { scanWrap.classList.add('co-soon'); }
+    sheet.append(scanWrap);
     return sheet;
   }
 
@@ -291,7 +358,9 @@ export async function mountShell(store, root) {
     const v = ce('section', 'co-view');
     const head = ce('div', 'co-fillhead');
     const back = ce('button', 'co-back', '‹'); back.setAttribute('aria-label', 'back'); back.addEventListener('click', () => go('forms'));
-    head.append(back, ce('div', 'co-filltitle', (current.tree.meta && current.tree.meta.title) || 'Form'));
+    const shareBtn = ce('button', 'co-share-btn', '⤴ Share'); shareBtn.type = 'button';
+    shareBtn.addEventListener('click', () => shareForm(current.tree).catch((e) => toast('Could not build share: ' + e.message)));
+    head.append(back, ce('div', 'co-filltitle', (current.tree.meta && current.tree.meta.title) || 'Form'), shareBtn);
     v.append(head);
     if (fillFlash) { v.append(ce('div', 'co-flash', fillFlash)); fillFlash = ''; }
     const host = ce('div'); v.append(host);

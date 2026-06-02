@@ -122,6 +122,12 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 
 .co-toast { position: fixed; left: 50%; bottom: 4.5rem; transform: translateX(-50%); background: var(--au-text); color: var(--au-bg); font-size: .8rem; padding: .5rem .9rem; border-radius: 6px; max-width: 90vw; z-index: 60; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
 
+.co-share .co-qr-wrap { display: flex; justify-content: center; margin: .25rem 0 .75rem; }
+.co-qr { width: 12rem; height: 12rem; max-width: 100%; background: #fff; border: 6px solid #fff; border-radius: 6px; }
+.co-share-toobig { color: #B8860B; font-size: .82rem; margin: .5rem 0 .75rem; }
+.co-share-link { display: flex; gap: .4rem; margin-bottom: .6rem; }
+.co-share-url { flex: 1; min-width: 0; font-family: var(--au-mono); font-size: .72rem; padding: .35rem .5rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-bg); color: var(--au-text); }
+
 .co-list { display: flex; flex-direction: column; gap: .5rem; }
 .co-formrow { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left; font: inherit; padding: .7rem .8rem; border: 1px solid var(--au-border); border-radius: 8px; background: var(--au-surface); color: var(--au-text); cursor: pointer; }
 .co-formmain { flex: 1; min-width: 0; }
@@ -131,7 +137,8 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 
 .co-fillhead { display: flex; align-items: center; gap: .5rem; }
 .co-back { font-size: 1.4rem; line-height: 1; border: none; background: none; color: var(--au-action); cursor: pointer; padding: 0 .3rem; }
-.co-filltitle { font-family: var(--au-mono); font-size: 1.05rem; }
+.co-filltitle { font-family: var(--au-mono); font-size: 1.05rem; flex: 1; min-width: 0; }
+.co-share-btn { font: inherit; font-size: .8rem; padding: .3rem .7rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-action); cursor: pointer; white-space: nowrap; }
 .co-flash { font-size: .85rem; color: #3E7D54; background: var(--au-surface); border: 1px solid var(--au-border); border-radius: 6px; padding: .4rem .6rem; }
 
 .co-group { font-family: var(--au-mono); font-size: .78rem; color: var(--au-muted); margin-top: .5rem; }
