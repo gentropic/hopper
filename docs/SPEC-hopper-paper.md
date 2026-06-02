@@ -128,6 +128,31 @@ renderer today (auto-form first, per SPEC-hopper-form's auto-layout intent).
   the rain*. Switchboard (Barlow / Space Mono, equipment-gray) is the starting palette,
   but print is its own medium — hairlines, ink spread, exact physical size.
 
+### Per-page furniture budget
+
+The machine-readable furniture (header QR, fiducials, calibration strip) plus its
+**quiet zones** is space you're not writing in — a real budget, especially on a dense
+field-notes page. The governing move: **amortize identity onto the edition** (§13), so
+per-page furniture stays small.
+
+- **Tiny id-only QR.** The *form capsule* lives on the edition's back cover (§13),
+  printed once — so a per-page header QR carries only `edition · page · instance`, a
+  handful of bytes → a small QR (~centimetre; Micro QR if the detector supports it —
+  test, support is spotty). Use numeric/alphanumeric mode and modest ECC (geometry is
+  the fiducials' job, not the QR's), and print a **short human-readable code** beside
+  it as a smudge-proof backup (people can read a page id too).
+- **Small but spread fiducials.** A good homography wants 4 corner points *spread*
+  (clustered solves poorly) but each can be small. **ArUco** corners (self-identifying,
+  recover from rotation / a missing corner) beat plain crop-marks for angled, partial
+  notebook shots; one corner QR can double as an anchor. **Bound pages bow**, so a few
+  **edge/midpoint ticks** buy mild non-planar correction a flat loose sheet wouldn't need.
+- **Thin calibration strip.** Must be in-frame each photo (light varies per shot), but
+  a few-millimetre **edge/footer strip**, not a block.
+- **Right-size to the page's job.** A free-write notes page needs only reliable *id* +
+  enough *dewarp* for the flag margin + a clean *text crop* — modest furniture, generous
+  writing area; a dense-OMR page spends more. Exact sizes are an **empirical-tuning** job
+  against real prints + phone scans, not an a-priori guess.
+
 ## 4. Field types on paper (§4 mapping)
 
 | §4 type | printed as | read as |
