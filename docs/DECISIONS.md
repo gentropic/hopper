@@ -53,9 +53,13 @@ earn at least that trust.
   and (b) **predictable flushed writes** via `createSyncAccessHandle` (in a
   worker), which is closer to ODK's "on disk the instant you save."
 - **The real floor — automatic off-device copy:** auto-snapshot to a
-  user-chosen local folder (File System Access on desktop) or auto-push to the
-  repo, every N records or every save. The user never has to *remember* to back
-  up.
+  user-chosen local folder (File System Access) or auto-push to the repo, every N
+  records or every save. The user never has to *remember* to back up. **File
+  System Access now works on Android Chrome** (not desktop-only) — so the
+  folder-mirror is a real **mobile** durability floor on the primary field
+  device, and pointing it at a phone's file-sync folder (Drive/Dropbox/Syncthing)
+  makes it conflict-free off-device per §5. (Implemented: `store.setMirror` +
+  the boot folder picker.)
 - **A loud, un-dismissable single-copy indicator:** "⚠ X records exist only on
   this phone," quiet only once those records are replicated somewhere. Values
   single-copy is the loudest alarm (see §8).
