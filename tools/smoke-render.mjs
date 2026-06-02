@@ -33,6 +33,15 @@ try {
 
   // shell boots on the Forms screen with the seeded demo form listed
   await page.waitForSelector('.co-nav', { timeout: 5000 });
+
+  // first-run durability nudge (§4.2) — present while storage isn't durable yet
+  // (headless: usually not persisted, so it shows); dismissible. Conditional so the
+  // smoke is robust to whether the browser auto-grants persistence.
+  if (await page.locator('.co-onboard').count()) {
+    await page.locator('.co-onboard').getByRole('button', { name: 'Dismiss' }).click();
+    await page.locator('.co-onboard').waitFor({ state: 'detached', timeout: 2000 });
+  }
+
   const demoRow = page.locator('.co-formrow', { hasText: 'QF Sample Log (demo)' });
   await demoRow.waitFor({ state: 'visible', timeout: 3000 });
 

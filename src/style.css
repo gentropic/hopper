@@ -91,6 +91,11 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .co-vhead h2 { font-family: var(--au-mono); font-size: 1.1rem; margin: 0; }
 .co-empty { color: var(--au-muted); font-size: .9rem; }
 
+.co-onboard { border: 1px solid var(--au-border); border-left: 3px solid var(--au-action); border-radius: 8px; padding: .7rem .8rem; background: var(--au-surface); display: flex; flex-direction: column; gap: .4rem; }
+.co-onboard-h { font-weight: 600; font-size: .95rem; }
+.co-onboard-b { font-size: .82rem; color: var(--au-muted); line-height: 1.4; }
+.co-onboard-acts { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .2rem; }
+
 .co-addrow { display: flex; align-items: center; gap: .5rem; font: inherit; font-size: .9rem; padding: .5rem .7rem; border: 1px dashed var(--au-border); border-radius: 8px; background: none; color: var(--au-text); cursor: pointer; }
 .co-plus { color: var(--au-action); font-size: 1.2rem; line-height: 1; }
 .co-sheet { border: 1px solid var(--au-border); border-radius: 8px; padding: .75rem; display: flex; flex-direction: column; gap: .5rem; }

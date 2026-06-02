@@ -43,6 +43,7 @@ function dirPref(method, val) {
 
 const THEME_KEY = 'hopper-theme';
 function applyTheme(t) { if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); }
+function isStandalone() { try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch { return false; } }
 
 // Count fields in a §8 tree (recursing into group/repeat children) — for the
 // add-form confirm preview, so the user sees the shape of what's landing.
@@ -199,9 +200,13 @@ const SEED_FORM = {
   views: [],
 };
 
-export async function mountShell(store, root) {
+const ONBOARD_KEY = 'hopper-onboard-dismissed';
+
+export async function mountShell(store, root, opts = {}) {
   const id = store.identity();
   applyTheme(localStorage.getItem(THEME_KEY) || null);
+  // install hook from boot (captures `beforeinstallprompt`); safe no-op default.
+  const installer = opts.installer || { available: () => false, prompt: async () => false };
 
   // ---- shell state ----
   let screen = 'forms';        // forms | fill | outbox | settings
@@ -268,10 +273,35 @@ export async function mountShell(store, root) {
     await refreshChrome();
   }
 
+  // First-run durability nudge (§4.2): records live in evictable browser storage
+  // until you make them durable — install for persistent storage, or back up to a
+  // folder. Shown once (dismissible) on Forms while not yet durable / not installed.
+  async function onboardCard() {
+    if (localStorage.getItem(ONBOARD_KEY) || isStandalone()) return null;
+    const s = await store.status();
+    if (s.persisted || s.mirrored) return null;                 // already durable — no nudge
+    const card = ce('div', 'co-onboard');
+    card.append(ce('div', 'co-onboard-h', 'Keep your records safe'));
+    card.append(ce('div', 'co-onboard-b', 'Your records live in this browser, which can evict them. Make storage durable — install the app for persistent, eviction-proof storage, or back up to a folder (Settings).'));
+    const acts = ce('div', 'co-onboard-acts');
+    if (installer.available()) {
+      const ins = ce('button', 'co-btn', 'Install app');
+      ins.addEventListener('click', async () => { await installer.prompt(); await render(); });
+      acts.append(ins);
+    }
+    const per = ce('button', 'co-btn' + (installer.available() ? ' co-ghost' : ''), 'Grant persistence');
+    per.addEventListener('click', async () => { const ok = await store.persistRequest(); toast(ok ? 'Persistent storage granted ✓' : 'Browser declined — install the app to qualify'); await render(); });
+    const dis = ce('button', 'co-btn co-ghost', 'Dismiss');
+    dis.addEventListener('click', () => { localStorage.setItem(ONBOARD_KEY, '1'); render(); });
+    acts.append(per, dis); card.append(acts);
+    return card;
+  }
+
   // ---- Forms ----
   async function viewForms() {
     const v = ce('section', 'co-view');
     const head = ce('div', 'co-vhead'); head.append(ce('h2', null, 'Forms')); v.append(head);
+    const ob = await onboardCard(); if (ob) v.append(ob);
 
     const forms = await store.listForms();
     const recs = await store.recordsView();
@@ -529,6 +559,16 @@ export async function mountShell(store, root) {
     srow(stor, 'Off-device backup', ce('span', 'co-val', s.mirrored ? `↪ ${backupName || 'folder'}` : 'none'));
 
     const storActions = ce('div', 'co-srow co-srow-actions');
+    if (installer.available()) {
+      const ins = ce('button', 'co-btn', 'Install app');
+      ins.addEventListener('click', async () => { await installer.prompt(); await render(); });
+      storActions.append(ins);
+    }
+    if (!s.persisted) {
+      const per = ce('button', 'co-btn' + (installer.available() ? ' co-ghost' : ''), 'Grant persistence');
+      per.addEventListener('click', async () => { const ok = await store.persistRequest(); toast(ok ? 'Persistent storage granted ✓' : 'Browser declined — install the app to qualify'); await render(); });
+      storActions.append(per);
+    }
     if (supportsFolder && !s.mirrored) {
       const fb = ce('button', 'co-btn', 'Back up to folder…');
       fb.addEventListener('click', async () => {
