@@ -14,26 +14,32 @@ mostly-one-person experience.
 XLSForm is a first-class interchange format, so Hopper is an on-ramp to and
 complement of the ODK ecosystem, not a rival to it.
 
-**Status:** design complete, implementation starting. The specs and reference
-implementations here are the handoff; production code lands in `src/`.
+**Status:** under active development. The offline collection loop works end to
+end — load / scan / share a form → fill → capture → sign → persist → back up →
+merge a peer's archive — in the built `collector.html`. Next: live sync carriers,
+then the builder (jig) and analysis console (mill). The specs in `docs/` are the
+design contract; the code in `src/` is the implementation.
 
 ## Layout
 
-- `docs/` — the three specs. Start with `SPEC-hopper.md`.
-- `reference/` — working reference implementations to port into the stack
-  (the renderer, the XLSForm converter). Correct and tested, but single-file
-  prototypes — not the shipped modules.
+- `docs/` — the specs + `DECISIONS.md`. Start with `SPEC-hopper.md`.
+- `src/` — the modular implementation (see `src/README.md`); built into
+  `collector.html` at the repo root.
+- `reference/` — the single-file prototypes the stack was grown from (the
+  renderer, the XLSForm converter). Correct and tested, but not the shipped modules.
 - `mocks/` — UX mocks (look and feel, not code).
 - `examples/` — sample form definitions.
-- `src/` — where the modular implementation goes (see `src/README.md`).
 
 ## The specs
 
 - **SPEC-hopper** — architecture, topology, invariants, build order. The entry point.
 - **SPEC-hopper-form** — the format contract: the canonical tree, its
   serializations (`@gcu/yaml` / JSON / XLSForm), field types, rules.
+- **SPEC-hopper-rules** — the rule-expression language (a total calculus).
 - **SPEC-hopper-collector** — the collector app: shell, records, storage, and
   the full sync carrier model.
+- **SPEC-hopper-records** — the signed record object model and the conflict-free union.
+- **DECISIONS.md** — design resolutions that amend the specs where they differ.
 
 ## Build order
 

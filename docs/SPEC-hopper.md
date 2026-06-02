@@ -7,7 +7,7 @@
 **Editor:** Arthur Endlein Correia
 **Last revised:** 2026-06-01
 **License:** spec CC0 · reference implementations MIT
-**Amended by:** `DECISIONS.md` + `SPEC-hopper-rules` + `SPEC-hopper-records` (post-handoff design session, 2026-06-01). Those are newer where they differ; §1, §3, §7, §8 are updated inline.
+**Amended by:** `DECISIONS.md` + `SPEC-hopper-rules` + `SPEC-hopper-records` (follow-up design session, 2026-06-01). Those are newer where they differ; §1, §3, §7, §8 are updated inline.
 
 ## Abstract
 
@@ -104,23 +104,23 @@ Then, in order: **P2P sync** (Trystero) → **jig** (builder) → **mill** (anal
 
 ---
 
-## 8. Build handoff
+## 8. Doc set & build
 
-This environment produced the **design, the contract, and reference artifacts**; the production build happens in Claude Code, against the real GCU stack (sideact/vfs/cradle/capsule), properly modularized, tested, and published.
+The **design, contract, and reference artifacts** were produced first; the production build runs against the real GCU stack (sideact/vfs/cradle/capsule), properly modularized, tested, and published — that build is now underway (the collection loop runs end to end; see CLAUDE.md for current status).
 
-The handoff set:
+The doc set:
 
 - **SPEC-hopper** (this doc) — architecture, invariants, build order.
 - **SPEC-hopper-form** — the format contract the renderer and converters target.
 - **SPEC-hopper-collector** — the collector app contract: shell, records/storage, and the full sync carrier model.
 - **SPEC-hopper-rules** — the rule-expression language: a total expression calculus (closes the §7 runtime question).
 - **SPEC-hopper-records** — the signed object model: record envelope, per-stream append-only logs, content-addressing, the conflict-free union.
-- **DECISIONS** — post-handoff design resolutions amending this set (durability, git-shaped sync, private-by-default, surfaces-not-apps).
+- **DECISIONS** — follow-up design resolutions amending this set (durability, git-shaped sync, private-by-default, surfaces-not-apps).
 - **Reference implementations** — `hopper-renderer` (tree → live form + reactive rules), `@gcu/hopper-xlsform` (tested XLSForm↔tree converter).
 - **UX references** — `hopper.html` (collector shell), `works-dataapp-mock` (builder feel).
 - **Forthcoming** — SPEC-hopper-jig, then SPEC-hopper-mill, written as each design firms up.
 
-Claude Code reads the overview, builds against the format contract, and ports the prototypes into the stack.
+The build reads the overview, targets the format contract, and grew from the reference prototypes (now ported into the stack).
 
 ---
 

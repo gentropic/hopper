@@ -1,7 +1,7 @@
 # DECISIONS — Hopper design session
 
 **Role of this doc:** a dated record of design resolutions reached after the
-handoff specs (SPEC-hopper / -form / -collector) were drafted. It captures *what
+original specs (SPEC-hopper / -form / -collector) were drafted. It captures *what
 was decided and why*, ahead of graduating the load-bearing items into the specs
 proper. Where this doc and a spec disagree, **this doc is newer** — but the specs
 remain the normative contract until an item is explicitly promoted (see §11).
@@ -15,7 +15,7 @@ remain the normative contract until an item is explicitly promoted (see §11).
 
 ## 0. Context
 
-These resolutions tighten three things the handoff left soft: **durability**
+These resolutions tighten three things the original specs left soft: **durability**
 (the existential risk for a field-data tool), the **central/sync model** (which
 turned out to want a git-shaped object store, not a hub), and the **rule
 expression layer** (which does *not* want `soft`). Several earlier "open /
@@ -23,7 +23,7 @@ parked" decisions (SPEC-hopper §7) close here, and one new top-line principle �
 **private by default** — joins append-only and definition-is-data as a
 load-bearing commitment.
 
-The throughline: nearly every hard problem the handoff parked (provenance,
+The throughline: nearly every hard problem the original specs parked (provenance,
 schema-versioning, merge, private hosting, naive cloud-sync conflicts) collapses
 into **one mechanism — content-addressed, signed, immutable objects in
 per-writer append-only logs.** Get that object model right and the rest falls
@@ -404,7 +404,7 @@ These are decided-by-building, not by more discussion:
 
 ## 11. What graduates where (promotion map)
 
-**Promotion applied 2026-06-01.** The handoff specs now carry amendment banners
+**Promotion applied 2026-06-01.** The original specs now carry amendment banners
 and inline updates for the items below; `SPEC-hopper-rules` and
 `SPEC-hopper-records` are drafted. The map records where each landed:
 
@@ -417,7 +417,7 @@ and inline updates for the items below; `SPEC-hopper-rules` and
 | §7 surfaces-not-apps; collector lean / mill sibling | **SPEC-hopper** §3 (component map) + collector §2 |
 | §9 seams (time, privacy, flat-forms, served-not-file) | scattered: collector §4/§6, form §12, hopper §5 |
 
-The handoff specs and the two new specs are now mutually consistent; this doc
+The original specs and the two new specs are now mutually consistent; this doc
 remains the **rationale-of-record** for *why* each call was made.
 
 ---
