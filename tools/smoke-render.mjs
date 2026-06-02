@@ -163,8 +163,18 @@ try {
   await nav('Forms').click();
   await page.locator('.co-formrow', { hasText: 'Imported Peer Form' }).waitFor({ timeout: 3000 });
 
+  // (e) offline: the service worker serves the cached shell for a navigation to
+  // the bare origin "/" (not just the exact precached URL) — the durability point
+  // of a served PWA. Wait for the SW to control the page, cut the network, reload.
+  await page.waitForFunction(() => !!navigator.serviceWorker?.controller, undefined, { timeout: 6000 });
+  await page.context().setOffline(true);
+  await page.goto(srv.url);                                          // bare "/" while offline → SW shell fallback
+  // a form row proves it both booted from the cached shell AND read IDB offline
+  await page.locator('.co-formrow').first().waitFor({ timeout: 6000 });
+  await page.context().setOffline(false);
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import (union)');
+  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import, offline shell');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);
