@@ -18,6 +18,7 @@ import { parse, evaluate } from '../rules/eval.js';
 const { signal } = sideact;
 
 const isEmptyVal = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);   // distinct name (flat build: one shared scope)
+const MEDIA_TYPES = new Set(['photo', 'audio', 'video', 'file']);   // value is an attachment ref {blob,mime,bytes}, lives in `attachments` not `values` (§8)
 const defaultOf = (node) => (node.props && 'default' in node.props ? node.props.default : null);
 function tryParse(expr) { try { return parse(expr); } catch { return null; } }
 
@@ -65,7 +66,7 @@ export function createForm(tree) {
   // ---- value snapshots (read signals → tracked) ----
   function flatValues() {
     const o = {};
-    for (const [name, fs] of flat) if (fs.node.fieldType !== 'calc') o[name] = fs.get();
+    for (const [name, fs] of flat) if (fs.node.fieldType !== 'calc' && !MEDIA_TYPES.has(fs.node.fieldType)) o[name] = fs.get();
     return o;
   }
   function repeatValues(name) {
@@ -122,6 +123,18 @@ export function createForm(tree) {
     for (const [name] of flat) if (!isRelevant(name)) delete o[name];   // irrelevant ⇒ omitted
     return o;
   }
+  // The §8 attachments map: relevant media fields with a captured blob, keyed by
+  // field name → {blob, mime, bytes}. The blob bytes themselves are stored out of
+  // band (store.saveBlob); a record only binds them by hash.
+  function attachments() {
+    const o = {};
+    for (const [name, fs] of flat) {
+      if (!MEDIA_TYPES.has(fs.node.fieldType) || !isRelevant(name)) continue;
+      const v = fs.get();
+      if (v && v.blob) o[name] = { blob: v.blob, mime: v.mime || null, bytes: v.bytes ?? null };
+    }
+    return o;
+  }
 
   return {
     tree, roots, nodeByName,
@@ -136,6 +149,6 @@ export function createForm(tree) {
       };
     },
     repeatNames: () => [...repeats.keys()],
-    isRelevant, validity, calcValue, flags, values,
+    isRelevant, validity, calcValue, flags, values, attachments,
   };
 }

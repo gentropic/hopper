@@ -71,6 +71,10 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .hf-geo { display: flex; align-items: center; gap: .6rem; }
 .hf-capture { font: inherit; font-size: .85rem; padding: .35rem .7rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-action); cursor: pointer; }
 .hf-geo-val { font-family: var(--au-mono); font-size: .78rem; color: var(--au-muted); }
+.hf-media { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.hf-media-val { font-family: var(--au-mono); font-size: .78rem; color: #3E7D54; }   /* go */
+.hf-barcode { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.hf-scan-video { width: 100%; max-width: 360px; border-radius: 8px; border: 1px solid var(--au-border); background: #000; }
 .hf-multi { display: flex; flex-wrap: wrap; gap: .5rem; }
 .hf-check { display: inline-flex; align-items: center; gap: .2rem; font-size: .9rem; }
 
@@ -2345,6 +2349,7 @@ return { signal, computed, effect, batch, h, each, render };
 const { signal } = sideact;
 
 const isEmptyVal = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);   // distinct name (flat build: one shared scope)
+const MEDIA_TYPES = new Set(['photo', 'audio', 'video', 'file']);   // value is an attachment ref {blob,mime,bytes}, lives in `attachments` not `values` (§8)
 const defaultOf = (node) => (node.props && 'default' in node.props ? node.props.default : null);
 function tryParse(expr) { try { return parse(expr); } catch { return null; } }
 
@@ -2392,7 +2397,7 @@ function createForm(tree) {
   // ---- value snapshots (read signals → tracked) ----
   function flatValues() {
     const o = {};
-    for (const [name, fs] of flat) if (fs.node.fieldType !== 'calc') o[name] = fs.get();
+    for (const [name, fs] of flat) if (fs.node.fieldType !== 'calc' && !MEDIA_TYPES.has(fs.node.fieldType)) o[name] = fs.get();
     return o;
   }
   function repeatValues(name) {
@@ -2449,6 +2454,18 @@ function createForm(tree) {
     for (const [name] of flat) if (!isRelevant(name)) delete o[name];   // irrelevant ⇒ omitted
     return o;
   }
+  // The §8 attachments map: relevant media fields with a captured blob, keyed by
+  // field name → {blob, mime, bytes}. The blob bytes themselves are stored out of
+  // band (store.saveBlob); a record only binds them by hash.
+  function attachments() {
+    const o = {};
+    for (const [name, fs] of flat) {
+      if (!MEDIA_TYPES.has(fs.node.fieldType) || !isRelevant(name)) continue;
+      const v = fs.get();
+      if (v && v.blob) o[name] = { blob: v.blob, mime: v.mime || null, bytes: v.bytes ?? null };
+    }
+    return o;
+  }
 
   return {
     tree, roots, nodeByName,
@@ -2463,7 +2480,7 @@ function createForm(tree) {
       };
     },
     repeatNames: () => [...repeats.keys()],
-    isRelevant, validity, calcValue, flags, values,
+    isRelevant, validity, calcValue, flags, values, attachments,
   };
 }
 
@@ -2480,11 +2497,11 @@ const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.cla
 const opt = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
 const fmt = (v) => (v == null ? '' : String(v));
 
-function renderForm(form, mount, onSave) {
+function renderForm(form, mount, onSave, saveBlob) {
   mount.replaceChildren();
   const formEl = el('form', 'hf-form');
   formEl.addEventListener('submit', (e) => e.preventDefault());
-  for (const node of form.tree.fields || []) formEl.append(renderNode(form, node, null));
+  for (const node of form.tree.fields || []) formEl.append(renderNode(form, node, null, saveBlob));
 
   const flagsBar = el('div', 'hf-flags');
   effect(() => {
@@ -2495,9 +2512,9 @@ function renderForm(form, mount, onSave) {
   const save = el('button', 'hf-save'); save.type = 'button'; save.textContent = 'Save record';
   const out = el('pre', 'hf-out');
   save.addEventListener('click', async () => {
-    if (!onSave) { out.textContent = JSON.stringify(form.values(), null, 2); return; }
+    if (!onSave) { out.textContent = JSON.stringify({ values: form.values(), attachments: form.attachments() }, null, 2); return; }
     save.disabled = true; out.textContent = 'saving…';
-    try { const rec = await onSave(form.values()); out.textContent = `saved ✓ ${rec.id}`; }
+    try { const rec = await onSave(form.values(), form.attachments()); out.textContent = `saved ✓ ${rec.id}`; }
     catch (e) { out.textContent = 'save failed: ' + e.message; }
     finally { save.disabled = false; }
   });
@@ -2506,21 +2523,21 @@ function renderForm(form, mount, onSave) {
   return { values: () => form.values() };
 }
 
-function renderNode(form, node, inst) {
-  if (node.fieldType === 'group') return renderGroup(form, node, inst);
-  if (node.fieldType === 'repeat') return renderRepeat(form, node);
-  return renderField(form, node, inst);
+function renderNode(form, node, inst, saveBlob) {
+  if (node.fieldType === 'group') return renderGroup(form, node, inst, saveBlob);
+  if (node.fieldType === 'repeat') return renderRepeat(form, node, saveBlob);
+  return renderField(form, node, inst, saveBlob);
 }
 
-function renderGroup(form, node, inst) {
+function renderGroup(form, node, inst, saveBlob) {
   const d = el('details', 'hf-group'); d.open = true;
   const sum = document.createElement('summary'); sum.textContent = node.label || node.name; d.append(sum);
-  for (const c of node.children || []) d.append(renderNode(form, c, inst));
+  for (const c of node.children || []) d.append(renderNode(form, c, inst, saveBlob));
   effect(() => { d.hidden = !form.isRelevant(node.name, inst); });
   return d;
 }
 
-function renderRepeat(form, node) {
+function renderRepeat(form, node, saveBlob) {
   const wrap = el('div', 'hf-repeat');
   const head = el('div', 'hf-repeat-head'); head.textContent = node.label || node.name; wrap.append(head);
   const list = el('div', 'hf-repeat-list'); wrap.append(list);
@@ -2535,14 +2552,14 @@ function renderRepeat(form, node) {
       const rm = el('button', 'hf-remove'); rm.type = 'button'; rm.textContent = '×';
       rm.addEventListener('click', () => form.repeat(node.name).remove(i));
       card.append(rm);
-      for (const c of node.children || []) card.append(renderNode(form, c, inst));
+      for (const c of node.children || []) card.append(renderNode(form, c, inst, saveBlob));
       return card;
     }));
   });
   return wrap;
 }
 
-function renderField(form, node, inst) {
+function renderField(form, node, inst, saveBlob) {
   const ft = node.fieldType;
   if (ft === 'note') { const p = el('p', 'hf-note'); p.textContent = node.label || ''; return p; }
 
@@ -2603,7 +2620,11 @@ function renderField(form, node, inst) {
     });
     box.append(btn, val);
     input = box;
-  } else if (['geotrace', 'geoshape', 'photo', 'audio', 'video', 'file', 'barcode'].includes(ft)) {
+  } else if (ft === 'photo' || ft === 'audio' || ft === 'video' || ft === 'file') {
+    input = mediaWidget(ft, getV, setV, saveBlob);
+  } else if (ft === 'barcode') {
+    input = barcodeWidget(getV, setV);
+  } else if (ft === 'geotrace' || ft === 'geoshape') {
     input = el('div', 'hf-stub'); input.textContent = `[${ft} capture — not yet implemented]`;
     wrap.append(input);
     effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });
@@ -2619,6 +2640,88 @@ function renderField(form, node, inst) {
   effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });
   effect(() => { const { valid, message } = form.validity(node.name, inst); err.textContent = valid ? '' : message; wrap.classList.toggle('hf-invalid', !valid); });
   return wrap;
+}
+
+// Media capture (photo/audio/video/file) → a content-addressed attachment blob.
+// The file/camera input gives bytes; saveBlob stores them out of band and returns
+// a hash; the field value holds the ref {blob, mime, bytes} the engine collects
+// into the record's `attachments` (SPEC-hopper-records §8). `capture` hints the
+// device camera/mic but degrades to a file picker where unsupported.
+function mediaWidget(ft, getV, setV, saveBlob) {
+  const box = el('div', 'hf-media');
+  const fileEl = document.createElement('input'); fileEl.type = 'file';
+  if (ft === 'photo') { fileEl.accept = 'image/*'; fileEl.setAttribute('capture', 'environment'); }
+  else if (ft === 'audio') fileEl.accept = 'audio/*';
+  else if (ft === 'video') { fileEl.accept = 'video/*'; fileEl.setAttribute('capture', 'environment'); }
+  const status = el('span', 'hf-media-val');
+  effect(() => {
+    const v = getV();
+    status.textContent = v && v.blob ? `✓ ${v.mime || 'file'} · ${(v.bytes / 1024).toFixed(0)} KB · ${v.blob.slice(0, 16)}…` : '';
+  });
+  fileEl.addEventListener('change', async () => {
+    const f = fileEl.files && fileEl.files[0];
+    if (!f) return;
+    if (!saveBlob) { status.textContent = 'no blob store'; return; }
+    status.textContent = 'storing…';
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const blob = await saveBlob(bytes);
+      setV({ blob, mime: f.type || 'application/octet-stream', bytes: bytes.byteLength });
+    } catch (e) { status.textContent = 'store failed: ' + e.message; }
+  });
+  box.append(fileEl, status);
+  return box;
+}
+
+// Barcode/QR — the value is the decoded string (not a blob), so it lives in
+// `values`. Manual text entry always works; an in-page BarcodeDetector scan
+// (live camera) is offered where the browser supports it, degrading silently.
+function barcodeWidget(getV, setV) {
+  const box = el('div', 'hf-barcode');
+  const text = document.createElement('input'); text.type = 'text'; text.placeholder = 'barcode / QR';
+  text.value = getV() ?? '';
+  text.addEventListener('input', () => setV(text.value || null));
+  box.append(text);
+  const hasScanner = typeof window !== 'undefined' && 'BarcodeDetector' in window
+    && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+  if (hasScanner) {
+    const scan = el('button', 'hf-capture'); scan.type = 'button'; scan.textContent = '📷 Scan';
+    let session = null;
+    scan.addEventListener('click', async () => {
+      if (session) { session.stop(); return; }
+      session = await startBarcodeScan(box, scan, (code) => { text.value = code; setV(code); }, () => { session = null; });
+    });
+    box.append(scan);
+  }
+  return box;
+}
+
+// Open the camera, poll BarcodeDetector each frame, fire onCode on the first hit
+// then tear down. Returns a handle so the caller can stop a running scan; onEnd
+// fires on any termination (hit, manual stop, or failure) so the UI can reset.
+async function startBarcodeScan(box, btn, onCode, onEnd) {
+  let stream = null, raf = 0, ended = false;
+  const video = document.createElement('video'); video.className = 'hf-scan-video';
+  video.setAttribute('playsinline', ''); video.muted = true;
+  const stop = () => {
+    if (ended) return; ended = true;
+    if (raf) cancelAnimationFrame(raf);
+    if (stream) for (const t of stream.getTracks()) t.stop();
+    video.remove(); btn.textContent = '📷 Scan'; onEnd();
+  };
+  try {
+    const detector = new window.BarcodeDetector();
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = stream; box.append(video); await video.play();
+    btn.textContent = '◼ stop';
+    const tick = async () => {
+      if (ended) return;
+      try { const codes = await detector.detect(video); if (codes.length) { onCode(codes[0].rawValue); stop(); return; } } catch {}
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  } catch { stop(); }
+  return { stop };
 }
 
 // ── vendor/vfs.js (namespace: vfs) ──
@@ -5714,6 +5817,10 @@ function createStore(backend) {
   const writeJSONOn = async (be, p, obj) => { await ensureDirOn(be, dirname(p)); await be.writeFile(p, JSON.stringify(obj, null, 2)); };
   const readJSON = async (p) => ((await backend.exists(p)) ? JSON.parse(await backend.readFile(p)) : null);
   const writeJSON = async (p, obj) => { await writeJSONOn(backend, p, obj); if (mirror) { try { await writeJSONOn(mirror, p, obj); } catch {} } };
+  // Binary writes (attachment blobs): pass the Uint8Array straight through — vfs
+  // round-trips bytes via the 'bytes' encoding; JSON.stringify would corrupt them.
+  const writeBytesOn = async (be, p, bytes) => { await ensureDirOn(be, dirname(p)); await be.writeFile(p, bytes); };
+  const writeBytes = async (p, bytes) => { await writeBytesOn(backend, p, bytes); if (mirror) { try { await writeBytesOn(mirror, p, bytes); } catch {} } };
   const listDir = async (dir) => { try { return await backend.readdir(dir); } catch { return []; } };
 
   async function init({ name } = {}) {
@@ -5737,6 +5844,22 @@ function createStore(backend) {
     const p = `/forms/${hash}.json`;
     if (!(await backend.exists(p))) await writeJSON(p, tree);
     return hash;
+  }
+
+  // Store an attachment blob once, content-addressed (SPEC-hopper-records §8);
+  // returns its `sha256-…` hash for a record's `attachments` to bind by. Binary,
+  // not JSON (it's git-LFS for outcrop photos). Dedup: the same photo attached
+  // twice is one blob. Mirrors to the folder like every other write.
+  async function saveBlob(bytes) {
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const hash = await contentAddress(data);
+    const p = `/blobs/${hash}`;
+    if (!(await backend.exists(p))) await writeBytes(p, data);
+    return hash;
+  }
+  async function getBlob(hash) {
+    const p = `/blobs/${hash}`;
+    return (await backend.exists(p)) ? backend.readFile(p, 'bytes') : null;
   }
 
   // The save boundary: sign the values into an immutable record and append it.
@@ -5789,6 +5912,7 @@ function createStore(backend) {
     for (const dir of ['/streams', '/forms']) for (const n of await listDir(dir)) await writeJSONOn(be, `${dir}/${n}`, await readJSON(`${dir}/${n}`));
     const rdir = `/records/${identity.streamId}`;
     for (const n of (await listDir(rdir)).slice().sort()) await writeJSONOn(be, `${rdir}/${n}`, await readJSON(`${rdir}/${n}`));
+    for (const n of await listDir('/blobs')) await writeBytesOn(be, `/blobs/${n}`, await backend.readFile(`/blobs/${n}`, 'bytes'));
   }
   // The identity incl. private key — for deliberate KEY backup (separate from the
   // data export, which omits it). Lose this and you can't keep signing as you.
@@ -5811,7 +5935,7 @@ function createStore(backend) {
   }
 
   return {
-    init, putForm, saveRecord, listRecords, identity: () => identity, count: () => counter,
+    init, putForm, saveBlob, getBlob, saveRecord, listRecords, identity: () => identity, count: () => counter,
     exportBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }
@@ -32091,6 +32215,7 @@ const DEMO = {
   fields: [
     { name: 'site_id', fieldType: 'text', label: 'Site ID', props: { required: true } },
     { name: 'coords', fieldType: 'geo', label: 'Coordinates', props: {} },
+    { name: 'outcrop_photo', fieldType: 'photo', label: 'Outcrop photo', props: {} },
     { name: 'resample', fieldType: 'select', label: 'Resample needed?', props: { list: 'yesno' } },
     { name: 'why', fieldType: 'text', label: 'Why resample?', props: {} },
     { name: 'samples', fieldType: 'repeat', label: 'Samples', props: {}, children: [
@@ -32221,11 +32346,11 @@ async function setup() {
   async function loadForm(tree) {
     h1.textContent = (tree.meta && tree.meta.title) || 'Form';
     formHash = await store.putForm(tree);
-    renderForm(createForm(tree), host, async (values) => {
-      const rec = await store.saveRecord({ form: formHash, values });
+    renderForm(createForm(tree), host, async (values, attachments) => {
+      const rec = await store.saveRecord({ form: formHash, values, attachments });
       await refresh();
       return rec;
-    });
+    }, (bytes) => store.saveBlob(bytes));
   }
   fileInput.addEventListener('change', async () => {
     const f = fileInput.files && fileInput.files[0];

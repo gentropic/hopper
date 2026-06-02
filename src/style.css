@@ -61,6 +61,10 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .hf-geo { display: flex; align-items: center; gap: .6rem; }
 .hf-capture { font: inherit; font-size: .85rem; padding: .35rem .7rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-action); cursor: pointer; }
 .hf-geo-val { font-family: var(--au-mono); font-size: .78rem; color: var(--au-muted); }
+.hf-media { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.hf-media-val { font-family: var(--au-mono); font-size: .78rem; color: #3E7D54; }   /* go */
+.hf-barcode { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.hf-scan-video { width: 100%; max-width: 360px; border-radius: 8px; border: 1px solid var(--au-border); background: #000; }
 .hf-multi { display: flex; flex-wrap: wrap; gap: .5rem; }
 .hf-check { display: inline-flex; align-items: center; gap: .2rem; font-size: .9rem; }
 

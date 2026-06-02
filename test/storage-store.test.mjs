@@ -70,6 +70,44 @@ test('store: folder mirror auto-backs-up the repo (backfill + ongoing)', async (
   assert.equal((await store.status()).mirrored, true);
 });
 
+test('store: saveBlob is content-addressed, binary-safe, dedups; getBlob round-trips', async () => {
+  const store = createStore(new MemoryBackend());
+  await store.init();
+
+  // bytes that are NOT valid UTF-8 — proves binary round-trips (not string-mangled)
+  const bytes = new Uint8Array([0, 255, 1, 254, 0x89, 0x50, 0x4e, 0x47, 128, 0]);
+  const hash = await store.saveBlob(bytes);
+  assert.match(hash, /^sha256-[A-Za-z0-9_-]+$/);
+
+  const back = await store.getBlob(hash);
+  assert.ok(back instanceof Uint8Array);
+  assert.deepEqual([...back], [...bytes], 'blob bytes survive exactly');
+
+  assert.equal(await store.saveBlob(bytes), hash, 'same bytes → same hash (dedup)');
+  const other = await store.saveBlob(new Uint8Array([1, 2, 3]));
+  assert.notEqual(other, hash, 'different bytes → different hash');
+  assert.equal(await store.getBlob('sha256-missing'), null, 'unknown hash → null');
+
+  // a record can bind the blob by hash in its attachments (SPEC-records §8)
+  const fh = await store.putForm(FORM);
+  const rec = await store.saveRecord({ form: fh, values: {}, attachments: { photo: { blob: hash, mime: 'image/png', bytes: bytes.byteLength } } });
+  assert.equal(rec.attachments.photo.blob, hash);
+});
+
+test('store: folder mirror backfills + ongoing-writes blobs', async () => {
+  const primary = new MemoryBackend(), folder = new MemoryBackend();
+  const store = createStore(primary);
+  await store.init();
+  const pre = await store.saveBlob(new Uint8Array([10, 20, 30]));   // before a mirror
+
+  await store.setMirror(folder);
+  assert.ok(await folder.exists(`/blobs/${pre}`), 'existing blob backfilled to folder');
+  assert.deepEqual([...(await folder.readFile(`/blobs/${pre}`, 'bytes'))], [10, 20, 30]);
+
+  const post = await store.saveBlob(new Uint8Array([40, 50]));      // after a mirror
+  assert.ok(await folder.exists(`/blobs/${post}`), 'new blob lands in the folder too');
+});
+
 test('store: identity + counter persist across reload (same backend)', async () => {
   const backend = new MemoryBackend();
   const s1 = createStore(backend);

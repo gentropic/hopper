@@ -15,6 +15,7 @@ const DEMO = {
   fields: [
     { name: 'site_id', fieldType: 'text', label: 'Site ID', props: { required: true } },
     { name: 'coords', fieldType: 'geo', label: 'Coordinates', props: {} },
+    { name: 'outcrop_photo', fieldType: 'photo', label: 'Outcrop photo', props: {} },
     { name: 'resample', fieldType: 'select', label: 'Resample needed?', props: { list: 'yesno' } },
     { name: 'why', fieldType: 'text', label: 'Why resample?', props: {} },
     { name: 'samples', fieldType: 'repeat', label: 'Samples', props: {}, children: [
@@ -145,11 +146,11 @@ async function setup() {
   async function loadForm(tree) {
     h1.textContent = (tree.meta && tree.meta.title) || 'Form';
     formHash = await store.putForm(tree);
-    renderForm(createForm(tree), host, async (values) => {
-      const rec = await store.saveRecord({ form: formHash, values });
+    renderForm(createForm(tree), host, async (values, attachments) => {
+      const rec = await store.saveRecord({ form: formHash, values, attachments });
       await refresh();
       return rec;
-    });
+    }, (bytes) => store.saveBlob(bytes));
   }
   fileInput.addEventListener('change', async () => {
     const f = fileInput.files && fileInput.files[0];

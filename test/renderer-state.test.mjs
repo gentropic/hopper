@@ -13,6 +13,7 @@ const TREE = {
       { name: 'fe_pct', fieldType: 'number', label: 'Fe %', props: {} },
     ] },
     { name: 'n_samples', fieldType: 'calc', label: '', props: {} },
+    { name: 'photo', fieldType: 'photo', label: 'Photo', props: {} },
   ],
   choices: { yesno: [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }] },
   rules: [
@@ -78,4 +79,13 @@ test('values() snapshot: nested repeat array, irrelevant field omitted', () => {
   assert.equal('why' in v, false);                     // irrelevant ⇒ omitted (§4.5)
   assert.deepEqual(v.samples, [{ fe_pct: 64 }]);
   assert.equal(v.n_samples, 1);                         // calc included
+  assert.equal('photo' in v, false);                    // media lives in attachments, not values (§8)
+});
+
+test('attachments(): media ref collected, keyed by field; excluded from values', () => {
+  const f = createForm(TREE);
+  assert.deepEqual(f.attachments(), {});                // nothing captured yet
+  f.set('photo', { blob: 'sha256-abc', mime: 'image/jpeg', bytes: 184320 });
+  assert.deepEqual(f.attachments(), { photo: { blob: 'sha256-abc', mime: 'image/jpeg', bytes: 184320 } });
+  assert.equal('photo' in f.values(), false);           // never leaks into values
 });

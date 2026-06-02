@@ -25,6 +25,10 @@ export function createStore(backend) {
   const writeJSONOn = async (be, p, obj) => { await ensureDirOn(be, dirname(p)); await be.writeFile(p, JSON.stringify(obj, null, 2)); };
   const readJSON = async (p) => ((await backend.exists(p)) ? JSON.parse(await backend.readFile(p)) : null);
   const writeJSON = async (p, obj) => { await writeJSONOn(backend, p, obj); if (mirror) { try { await writeJSONOn(mirror, p, obj); } catch {} } };
+  // Binary writes (attachment blobs): pass the Uint8Array straight through — vfs
+  // round-trips bytes via the 'bytes' encoding; JSON.stringify would corrupt them.
+  const writeBytesOn = async (be, p, bytes) => { await ensureDirOn(be, dirname(p)); await be.writeFile(p, bytes); };
+  const writeBytes = async (p, bytes) => { await writeBytesOn(backend, p, bytes); if (mirror) { try { await writeBytesOn(mirror, p, bytes); } catch {} } };
   const listDir = async (dir) => { try { return await backend.readdir(dir); } catch { return []; } };
 
   async function init({ name } = {}) {
@@ -48,6 +52,22 @@ export function createStore(backend) {
     const p = `/forms/${hash}.json`;
     if (!(await backend.exists(p))) await writeJSON(p, tree);
     return hash;
+  }
+
+  // Store an attachment blob once, content-addressed (SPEC-hopper-records §8);
+  // returns its `sha256-…` hash for a record's `attachments` to bind by. Binary,
+  // not JSON (it's git-LFS for outcrop photos). Dedup: the same photo attached
+  // twice is one blob. Mirrors to the folder like every other write.
+  async function saveBlob(bytes) {
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const hash = await contentAddress(data);
+    const p = `/blobs/${hash}`;
+    if (!(await backend.exists(p))) await writeBytes(p, data);
+    return hash;
+  }
+  async function getBlob(hash) {
+    const p = `/blobs/${hash}`;
+    return (await backend.exists(p)) ? backend.readFile(p, 'bytes') : null;
   }
 
   // The save boundary: sign the values into an immutable record and append it.
@@ -100,6 +120,7 @@ export function createStore(backend) {
     for (const dir of ['/streams', '/forms']) for (const n of await listDir(dir)) await writeJSONOn(be, `${dir}/${n}`, await readJSON(`${dir}/${n}`));
     const rdir = `/records/${identity.streamId}`;
     for (const n of (await listDir(rdir)).slice().sort()) await writeJSONOn(be, `${rdir}/${n}`, await readJSON(`${rdir}/${n}`));
+    for (const n of await listDir('/blobs')) await writeBytesOn(be, `/blobs/${n}`, await backend.readFile(`/blobs/${n}`, 'bytes'));
   }
   // The identity incl. private key — for deliberate KEY backup (separate from the
   // data export, which omits it). Lose this and you can't keep signing as you.
@@ -122,7 +143,7 @@ export function createStore(backend) {
   }
 
   return {
-    init, putForm, saveRecord, listRecords, identity: () => identity, count: () => counter,
+    init, putForm, saveBlob, getBlob, saveRecord, listRecords, identity: () => identity, count: () => counter,
     exportBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }
