@@ -86,9 +86,12 @@ system. Every sheet carries four standing elements:
    *self-identifies its schema and reassembles* multi-page sets. When the form is
    small enough, the QR may carry the **form capsule itself** (§8) so a blank sheet
    can bootstrap the form into a device with no network.
-2. **Corner fiducials** — registration markers at the page corners (QR
-   finder-patterns make excellent ones) so a phone photo can be **perspective-
-   corrected** (4-point homography → a rectified grid). Edge ticks aid long sheets.
+2. **Corner fiducials** — registration markers at the page corners so a phone photo
+   can be **perspective-corrected** (4-point homography → a rectified grid); edge
+   ticks aid long sheets. QR finder-patterns work, but for sub-pixel pose prefer a
+   real **ArUco/ChArUco** target — a *planar fiducial + pose* detector that is a
+   **shared GCU primitive** (the Portal viewing-mode spec wants the same one; build
+   it once).
 3. **A calibration strip** — a **grayscale step wedge** (e.g. 5–7 patches from
    paper-white to ink-black) printed in a fixed zone, so the reader sets
    **adaptive thresholds** from *this sheet under this light* rather than a global
@@ -143,8 +146,9 @@ baseline, and the only option where there's no usable camera.
 ### Interactive capture — camera as scanner
 Put the sheet under a phone or webcam and the app runs a **live guidance loop** — the
 *same* `requestAnimationFrame` detect loop the `barcode`/QR scanner already uses
-(`renderer/scan.js`), extended to track the four corner fiducials each frame and
-score readiness. It turns "did I get a good scan?" — a static gamble discovered
+(`renderer/scan.js`), extended to track the four corner fiducials each frame
+(**One-Euro–smoothed** — another shared kit primitive, see Portal) and score
+readiness. It turns "did I get a good scan?" — a static gamble discovered
 *later* — into a **correctable real-time loop**:
 
 - an **alignment overlay** locks to the fiducials; live prompts nudge the user —
@@ -262,6 +266,16 @@ hand, scan it back to a georeferenced overlay.**
 This gives offline, paper-based field mapping that **round-trips to georeferenced
 data** — a capability we believe is essentially absent in this corner of the
 toolspace, and a natural fit for Hopper's geoscience roots.
+
+**Cross-stack note — capture → model → inspect.** The same georeferencing
+generalizes from the horizontal *map* plane to arbitrary **section planes** (encode
+the plane's 3D embedding — section line + elevation range + dip — in the header
+marker; lift the dewarped strokes into 3D), and N georeferenced planes + drillhole
+collars are the input to **implicit 3D modeling** — a *mill*-side / WASM step, not the
+lean collector. That closes one GCU pipeline: **capture** here (paper/acrylic
+sections) → **model** in the mill → **inspect** in **Portal** (the head-coupled
+viewing mode — "lean to look around the deposit"; `auditable/spec_inbox/portal-spec.md`).
+The fiducial+pose detector (§3) and the One-Euro filter (§5) are shared across it.
 
 ## 8. Paper as a carrier (the reverse direction)
 
