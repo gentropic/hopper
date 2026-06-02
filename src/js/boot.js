@@ -5,6 +5,7 @@
 import { createForm } from './renderer/state.js';
 import { renderForm } from './renderer/render.js';
 import { createStore } from './storage/store.js';
+import { loadFormByName } from './formsource/load.js';
 import * as vfs from '../../vendor/vfs.js';
 
 const DEMO = {
@@ -65,14 +66,18 @@ async function setup() {
   if (!app) return;
   app.replaceChildren();
   const main = mk('main', 'hf-app');
-  const h1 = mk('h1'); h1.textContent = DEMO.meta.title; main.append(h1);
+  const h1 = mk('h1'); main.append(h1);
+  const bar = mk('div', 'hf-toolbar');
+  const fileLabel = mk('label', 'hf-load'); fileLabel.textContent = 'Load form ';
+  const fileInput = mk('input'); fileInput.type = 'file'; fileInput.accept = '.yaml,.yml,.json';
+  fileLabel.append(fileInput); bar.append(fileLabel); main.append(bar);
   const readout = mk('div', 'hf-readout'); main.append(readout);
   const host = mk('div'); main.append(host);
   app.append(main);
 
   const store = createStore(new vfs.IDBBackend({ name: 'hopper' }));
   const id = await store.init({ name: 'collector' });
-  const formHash = await store.putForm(DEMO);
+  let formHash;
   await store.persistRequest();                         // ask for persistent storage (the eviction lever)
 
   let backupName = null;
@@ -134,12 +139,24 @@ async function setup() {
   }
   await refresh();
 
-  // Save = sign the values into an immutable record and append it (the save boundary).
-  renderForm(createForm(DEMO), host, async (values) => {
-    const rec = await store.saveRecord({ form: formHash, values });
-    await refresh();
-    return rec;
+  // Load a form (uploaded file, or the default) → store its definition → render.
+  // Save signs the values into an immutable record against the loaded form's hash.
+  async function loadForm(tree) {
+    h1.textContent = (tree.meta && tree.meta.title) || 'Form';
+    formHash = await store.putForm(tree);
+    renderForm(createForm(tree), host, async (values) => {
+      const rec = await store.saveRecord({ form: formHash, values });
+      await refresh();
+      return rec;
+    });
+  }
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    try { await loadForm(loadFormByName(f.name, await f.text())); }
+    catch (e) { window.alert('Could not load form: ' + e.message); }
   });
+  await loadForm(DEMO);
 }
 
 if ('serviceWorker' in navigator) {

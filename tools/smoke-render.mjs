@@ -50,8 +50,13 @@ try {
   await page.getByRole('button', { name: 'Export all' }).click();
   await page.waitForFunction(() => !document.querySelector('.hf-warn'), undefined, { timeout: 2000 });
 
+  // load a real form from a file (@gcu/yaml) → the whole UI re-renders from the tree
+  await page.locator('input[type="file"]').setInputFiles('examples/qf-sample-log.yaml');
+  await page.waitForFunction(() => document.querySelector('.hf-app h1')?.textContent === 'QF Sample Log', undefined, { timeout: 3000 });
+  assert.ok((await page.getByText('Lithology').count()) >= 1, 'loaded form fields render');
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ renderer smoke passed — form, relevance, repeat+aggregate, constraint, save→sign→IDB, durability warn+export');
+  console.log('✓ renderer smoke passed — form, relevance, repeat+aggregate, constraint, save→sign→IDB, durability, load-form');
   await browser.close();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

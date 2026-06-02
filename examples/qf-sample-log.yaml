@@ -68,5 +68,5 @@ rules:
     message: "Must be between 0 and 100"
   - verb: "relevant"
     target: "resample_reason"
-    expr: "resample equals \"yes\""
+    expr: "resample = \"yes\""
 views: []

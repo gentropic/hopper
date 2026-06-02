@@ -21,7 +21,7 @@ const SIB = resolve(ROOT, '..');               // ../  (sibling GitHub checkouts
 const MAP = [
   [resolve(SIB, 'auditable/ext/sideact/index.js'), 'sideact.js'],   // reactive signals + h/render
   [resolve(SIB, 'auditable/ext/vfs/index.js'), 'vfs.js'],           // VFS + IDB/OPFS/Memory backends
-  // [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],      // when the source tab / yaml parse lands
+  [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],        // @gcu/yaml — form source parse
   // [resolve(SIB, 'capsule/...'),                 'capsule.js'],   // standalone repo
 ];
 

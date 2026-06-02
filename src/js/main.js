@@ -22,4 +22,6 @@ import './renderer/state.js';    // → createForm: tree → reactive engine
 import './renderer/render.js';   // → renderForm: engine → DOM
 import * as vfs from '../../vendor/vfs.js';  // VFS backends (namespace-wrapped)
 import './storage/store.js';     // → createStore: signed append-only record store
-import './boot.js';              // renders the demo form + save→store, registers the SW
+import * as yaml from '../../vendor/yaml.js';  // @gcu/yaml (namespace-wrapped)
+import './formsource/load.js';   // → loadFormByName/Text: file → §8 tree
+import './boot.js';              // renders the form + save→store, registers the SW

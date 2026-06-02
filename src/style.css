@@ -33,6 +33,9 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 /* ── form renderer ─────────────────────────────────────────────────────── */
 .hf-app { max-width: 34rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
 .hf-app h1 { font-family: var(--au-mono); font-size: 1.2rem; letter-spacing: .01em; }
+.hf-toolbar { margin-bottom: .75rem; }
+.hf-load { font-family: var(--au-mono); font-size: .78rem; color: var(--au-muted); }
+.hf-load input { font: inherit; font-size: .78rem; }
 .hf-readout { border: 1px solid var(--au-border); border-radius: 6px; padding: .5rem .6rem; margin-bottom: 1rem; }
 .hf-readout-line { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .hf-readout-info { font-family: var(--au-mono); font-size: .75rem; color: var(--au-muted); }
