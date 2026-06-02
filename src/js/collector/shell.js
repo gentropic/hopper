@@ -10,6 +10,7 @@ import { createForm } from '../renderer/state.js';
 import { renderForm } from '../renderer/render.js';
 import { loadFormByName } from '../formsource/load.js';
 import { loadXlsx } from '../formsource/xlsx.js';
+import { resolveFormCapsule } from '../formsource/capsule.js';
 import * as vfs from '../../../vendor/vfs.js';
 
 // distinct top-level names (flat build = one shared scope; avoid render.js's `el`,
@@ -40,6 +41,44 @@ function dirPref(method, val) {
 
 const THEME_KEY = 'hopper-theme';
 function applyTheme(t) { if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); }
+
+// Count fields in a §8 tree (recursing into group/repeat children) — for the
+// add-form confirm preview, so the user sees the shape of what's landing.
+function countFields(nodes) {
+  let n = 0;
+  for (const node of nodes || []) { if (node.children) n += countFields(node.children); else n += 1; }
+  return n;
+}
+
+// A transient bottom toast (errors, advisories). Auto-dismisses.
+function toast(msg) {
+  const t = ce('div', 'co-toast', msg);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 3800);
+}
+
+// "Add this form?" — a confirm step before any capsule/link form is added. A
+// stranger's definition is safe to *open* (totality is the boundary), but adding
+// it is the user's call, and they should see what + from where. Resolves to a bool.
+function confirmAddForm(tree, source) {
+  return new Promise((res) => {
+    const scrim = ce('div', 'co-scrim');
+    const panel = ce('div', 'co-confirm');
+    const n = countFields(tree.fields);
+    panel.append(ce('h3', 'co-confirm-h', 'Add this form?'));
+    panel.append(ce('div', 'co-confirm-title', (tree.meta && (tree.meta.title || tree.meta.id)) || 'Untitled form'));
+    panel.append(ce('div', 'co-confirm-meta', `${n} field${n === 1 ? '' : 's'} · from ${source}`));
+    const actions = ce('div', 'co-confirm-actions');
+    const cancel = ce('button', 'co-btn co-ghost', 'Cancel');
+    const add = ce('button', 'co-btn', 'Add form');
+    const done = (ok) => { scrim.remove(); res(ok); };
+    cancel.addEventListener('click', () => done(false));
+    add.addEventListener('click', () => done(true));
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) done(false); });
+    actions.append(cancel, add); panel.append(actions); scrim.append(panel);
+    document.body.append(scrim);
+  });
+}
 
 // A small seed form so a fresh install has something to fill (idempotent: same
 // hash on every boot). Real forms arrive via the add-form sources (§1).
@@ -177,6 +216,7 @@ export async function mountShell(store, root) {
     const sheet = ce('div', 'co-sheet');
     sheet.append(ce('p', 'co-sheet-h', 'Add a form — definitions only; your records never leave the device until you send them.'));
 
+    // file upload — explicit, so no confirm step
     const fileLabel = ce('label', 'co-source');
     fileLabel.append(ce('span', null, '▤ Upload form file'), ce('span', 'co-source-d', '.yaml · .json · .xlsx (XLSForm)'));
     const fileInput = ce('input'); fileInput.type = 'file'; fileInput.accept = '.yaml,.yml,.json,.xlsx'; fileInput.className = 'co-file';
@@ -184,11 +224,27 @@ export async function mountShell(store, root) {
     fileLabel.append(fileInput);
     sheet.append(fileLabel);
 
-    for (const [glyph, name, desc] of [['▦', 'Scan a capsule', 'q: QR → form def'], ['↗', 'From URL', 'gh: / gist: / sheet']]) {
-      const r = ce('div', 'co-source co-soon');
-      r.append(ce('span', null, `${glyph} ${name}`), ce('span', 'co-source-d', `${desc} · (soon)`));
-      sheet.append(r);
-    }
+    // paste a capsule string or share link (inline = offline; gh:/gist:/url: fetched)
+    const paste = ce('div', 'co-source');
+    paste.append(ce('span', null, '⧉ Paste a capsule or link'), ce('span', 'co-source-d', 'q: / i: / gh: / gist: / url: · or a share link'));
+    const ta = ce('textarea', 'co-paste-input'); ta.rows = 2; ta.placeholder = 'q:d… or https://…/#…';
+    const resolveBtn = ce('button', 'co-btn', 'Resolve'); resolveBtn.type = 'button';
+    const perr = ce('div', 'co-paste-err');
+    resolveBtn.addEventListener('click', async () => {
+      const val = ta.value.trim();
+      if (!val) return;
+      perr.textContent = ''; resolveBtn.disabled = true; resolveBtn.textContent = 'resolving…';
+      try { await onResolveCapsule(val, 'a pasted capsule'); }
+      catch (e) { perr.textContent = 'Could not resolve: ' + e.message; }
+      finally { resolveBtn.disabled = false; resolveBtn.textContent = 'Resolve'; }
+    });
+    paste.append(ta, resolveBtn, perr);
+    sheet.append(paste);
+
+    // QR camera scan lands with the share (outbound) slice — its natural producer.
+    const scan = ce('div', 'co-source co-soon');
+    scan.append(ce('span', null, '▦ Scan QR'), ce('span', 'co-source-d', 'camera → capsule · (soon)'));
+    sheet.append(scan);
     return sheet;
   }
 
@@ -204,6 +260,30 @@ export async function mountShell(store, root) {
       current = { tree, hash }; fillFlash = '';
       await go('fill');                       // jump straight into the newly added form
     } catch (e) { window.alert('Could not load form: ' + e.message); }
+  }
+
+  // Add a capsule/link-resolved form, gated by a confirm preview, then open it.
+  async function addResolvedForm(tree, source) {
+    if (!(await confirmAddForm(tree, source))) return false;
+    const hash = await store.putForm(tree);
+    sheetOpen = false; current = { tree, hash }; fillFlash = '';
+    await go('fill');
+    return true;
+  }
+  async function onResolveCapsule(input, source) {
+    const tree = await resolveFormCapsule(input);   // throws → caller surfaces it
+    await addResolvedForm(tree, source);
+  }
+
+  // Open: if the URL carries a capsule in its #fragment (a shared link), offer to
+  // add it — confirmed, never silent. One-shot: clear the hash so a reload won't
+  // re-prompt. Failures toast and fall through to the normal shell (§1, §5).
+  async function checkInboundCapsule() {
+    if (!location.hash || location.hash.length < 2) return;
+    const href = location.href;
+    history.replaceState(null, '', location.pathname + location.search);
+    try { await addResolvedForm(await resolveFormCapsule(href), 'a shared link'); }
+    catch (e) { toast('Could not open the shared form: ' + e.message); }
   }
 
   // ---- Fill (the renderer) ----
@@ -332,5 +412,6 @@ export async function mountShell(store, root) {
   // seed a form on first run, then render
   if (!(await store.listForms()).length) await store.putForm(SEED_FORM);
   await render();
+  await checkInboundCapsule();               // a shared link → offer to add its form
   return { go };
 }

@@ -109,6 +109,18 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .co-source-d { font-family: var(--au-mono); font-size: .72rem; color: var(--au-muted); }
 .co-source.co-soon { opacity: .5; cursor: default; }
 .co-file { font-size: .78rem; margin-top: .35rem; }
+.co-paste-input { font: inherit; font-family: var(--au-mono); font-size: .78rem; width: 100%; margin-top: .35rem; padding: .4rem .5rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-bg); color: var(--au-text); resize: vertical; }
+.co-source .co-btn { align-self: flex-start; margin-top: .4rem; }
+.co-paste-err { color: #C8443B; font-size: .75rem; min-height: .5em; margin-top: .25rem; }
+
+.co-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 50; }
+.co-confirm { background: var(--au-surface); border: 1px solid var(--au-border); border-radius: 10px; padding: 1rem 1.1rem; max-width: 22rem; width: 100%; }
+.co-confirm-h { margin: 0 0 .5rem; font-family: var(--au-mono); font-size: 1rem; }
+.co-confirm-title { font-size: 1.05rem; margin-bottom: .15rem; }
+.co-confirm-meta { font-family: var(--au-mono); font-size: .75rem; color: var(--au-muted); margin-bottom: 1rem; }
+.co-confirm-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+
+.co-toast { position: fixed; left: 50%; bottom: 4.5rem; transform: translateX(-50%); background: var(--au-text); color: var(--au-bg); font-size: .8rem; padding: .5rem .9rem; border-radius: 6px; max-width: 90vw; z-index: 60; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
 
 .co-list { display: flex; flex-direction: column; gap: .5rem; }
 .co-formrow { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left; font: inherit; padding: .7rem .8rem; border: 1px solid var(--au-border); border-radius: 8px; background: var(--au-surface); color: var(--au-text); cursor: pointer; }

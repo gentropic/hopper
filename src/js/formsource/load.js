@@ -32,3 +32,12 @@ export function loadFormText(text, kind) {
 export function loadFormByName(name, text) {
   return loadFormText(text, /\.json$/i.test(name || '') ? 'json' : 'yaml');
 }
+
+// No filename to dispatch on (e.g. a resolved capsule's bytes): sniff the
+// serialization. JSON is the wire/machine form (a tree is JSON), so a leading
+// `{`/`[` → JSON; otherwise the human `@gcu/yaml` source. assertForm gives a
+// clear error if neither yields a §8 form.
+export function loadFormFromText(text) {
+  const t = String(text).trim();
+  return loadFormText(t, t[0] === '{' || t[0] === '[' ? 'json' : 'yaml');
+}

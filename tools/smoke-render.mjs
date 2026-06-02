@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 import { startServer } from './serve.mjs';
 import { treeToXlsform } from '../src/js/xlsform/index.js';
 import * as XLSX from '../vendor/sheetjs.mjs';
+import * as Capsule from '../vendor/capsule.js';
 
 // a 1×1 PNG — exercises real binary-blob capture (saveBlob → IDB → attachment)
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
@@ -107,8 +108,33 @@ try {
   await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Imported XLSForm', undefined, { timeout: 3000 });
   assert.ok((await page.getByText('Station').count()) >= 1, 'xlsx-loaded field renders');
 
+  // inbound capsule — a form definition that travels (SPEC-collector §1).
+  const CAPFORM = { type: 'form', meta: { id: 'cap', title: 'Capsule Form' }, fields: [{ name: 'q', fieldType: 'text', label: 'Q', props: {} }], choices: {}, rules: [], views: [] };
+  const cap = await Capsule.encodeInline(JSON.stringify(CAPFORM), { form: 'q' });
+
+  // (a) a shared link: open the app at #<fragment-encoded capsule> → confirm → add.
+  // (goto with only a hash change is a same-document nav; reload() forces a fresh
+  // boot so the shell's open-time auto-resolve runs against the hash.)
+  await page.goto(srv.url + '#' + Capsule.fragmentEncode(cap));
+  await page.reload();
+  await page.waitForSelector('.co-confirm', { timeout: 3000 });
+  assert.ok((await page.locator('.co-confirm-title').textContent()).includes('Capsule Form'), 'confirm previews the form title');
+  await page.locator('.co-confirm').getByRole('button', { name: 'Add form' }).click();
+  await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Capsule Form', undefined, { timeout: 3000 });
+  await page.waitForFunction(() => location.hash === '', undefined, { timeout: 2000 });   // one-shot: hash cleared
+
+  // (b) paste the capsule string into the add-form sheet → resolve → confirm → add
+  await page.reload();                       // clean boot, no hash → Forms screen
+  await page.waitForSelector('.co-nav', { timeout: 3000 });
+  await page.locator('.co-addrow').click();
+  await page.locator('.co-paste-input').fill(cap);
+  await page.getByRole('button', { name: 'Resolve' }).click();
+  await page.waitForSelector('.co-confirm', { timeout: 3000 });
+  await page.locator('.co-confirm').getByRole('button', { name: 'Add form' }).click();
+  await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Capsule Form', undefined, { timeout: 3000 });
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell (Forms·Fill·Outbox·Settings), capture→blob→sign→IDB, durability, add yaml + xlsx');
+  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, inbound capsule (link + paste)');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);
@@ -116,3 +142,4 @@ try {
   await shutdown();
   process.exit(1);
 }
+

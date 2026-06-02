@@ -22,7 +22,7 @@ const MAP = [
   [resolve(SIB, 'auditable/ext/sideact/index.js'), 'sideact.js'],   // reactive signals + h/render
   [resolve(SIB, 'auditable/ext/vfs/index.js'), 'vfs.js'],           // VFS + IDB/OPFS/Memory backends
   [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],        // @gcu/yaml — form source parse
-  // [resolve(SIB, 'capsule/...'),                 'capsule.js'],   // standalone repo
+  [resolve(SIB, 'capsule/dist/capsule.js'), 'capsule.js'],         // @gcu/capsule — SELF-CONTAINED ESM bundle
 ];
 
 mkdirSync(resolve(ROOT, 'vendor'), { recursive: true });
