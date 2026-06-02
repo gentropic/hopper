@@ -134,6 +134,57 @@ test('store: listForms + recordsView feed the collector shell', async () => {
   assert.deepEqual(view.map((r) => r.backedUp), [true, true], 'both backed up after export');
 });
 
+test('store: importBundle unions a peer (verify + idempotent + transitive gossip)', async () => {
+  // peer A authors two records against a form
+  const A = createStore(new MemoryBackend());
+  const idA = await A.init({ name: 'A' });
+  const fh = await A.putForm(FORM);
+  await A.saveRecord({ form: fh, values: { site_id: 'A1' } });
+  await A.saveRecord({ form: fh, values: { site_id: 'A2' } });
+  const bundleA = await A.exportBundle();
+  assert.equal(bundleA.records.length, 2);
+
+  // peer B (own identity, no records) imports A's bundle → union
+  const B = createStore(new MemoryBackend());
+  const idB = await B.init({ name: 'B' });
+  assert.notEqual(idA.streamId, idB.streamId);
+  const r1 = await B.importBundle(bundleA);
+  assert.deepEqual({ s: r1.streams, f: r1.forms, r: r1.records, rej: r1.rejected }, { s: 1, f: 1, r: 2, rej: 0 });
+
+  // A's form is now available to B; B's *own* outbox (its stream) is still empty
+  assert.equal((await B.listForms()).length, 1, 'imported form is fillable');
+  assert.equal((await B.recordsView()).length, 0, 'collector browses only your own records (§2)');
+  assert.equal(B.count(), 0, "import does not touch B's own counter");
+
+  // idempotent: re-importing the same bundle adds nothing
+  const r2 = await B.importBundle(bundleA);
+  assert.deepEqual({ r: r2.records, skipped: r2.skipped }, { r: 0, skipped: 2 });
+
+  // transitive: B can re-export A's records onward (grow-only-set gossip)
+  const bundleB = await B.exportBundle();
+  assert.equal(bundleB.records.length, 2, "B re-exports A's records");
+  assert.ok(bundleB.streams[`${idA.streamId}.json`], "A's stream registration travels with it");
+
+  // B can still author its own record after importing (counter intact)
+  const own = await B.saveRecord({ form: fh, values: { site_id: 'B1' } });
+  assert.equal(own.id, `${idB.streamId}/0`);
+});
+
+test('store: importBundle rejects a tampered record', async () => {
+  const A = createStore(new MemoryBackend());
+  await A.init({ name: 'A' });
+  const fh = await A.putForm(FORM);
+  await A.saveRecord({ form: fh, values: { site_id: 'real' } });
+  const bundle = await A.exportBundle();
+  bundle.records[0].values.site_id = 'tampered';        // mutate after signing
+
+  const B = createStore(new MemoryBackend());
+  await B.init({ name: 'B' });
+  const r = await B.importBundle(bundle);
+  assert.deepEqual({ r: r.records, rej: r.rejected }, { r: 0, rej: 1 }, 'bad signature → rejected, not written');
+  assert.equal((await B.exportBundle()).records.length, 0, 'nothing leaked into the repo');
+});
+
 test('store: identity + counter persist across reload (same backend)', async () => {
   const backend = new MemoryBackend();
   const s1 = createStore(backend);

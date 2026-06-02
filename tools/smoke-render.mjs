@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { startServer } from './serve.mjs';
 import { treeToXlsform } from '../src/js/xlsform/index.js';
+import { createStore } from '../src/js/storage/store.js';
+import { MemoryBackend } from '../vendor/vfs.js';
 import * as XLSX from '../vendor/sheetjs.mjs';
 import * as Capsule from '../vendor/capsule.js';
 
@@ -145,8 +147,24 @@ try {
   await page.locator('.co-confirm').getByRole('button', { name: 'Add form' }).click();
   await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Capsule Form', undefined, { timeout: 3000 });
 
+  // (d) archive import — set-union merge: pull a peer's bundle in (sigs verified),
+  // its form becomes fillable without touching your own records (§2, §6).
+  const PEERFORM = { type: 'form', meta: { id: 'peer', title: 'Imported Peer Form' }, fields: [{ name: 'p', fieldType: 'text', label: 'P', props: {} }], choices: {}, rules: [], views: [] };
+  const peer = createStore(new MemoryBackend());
+  await peer.init({ name: 'Peer' });
+  const pfh = await peer.putForm(PEERFORM);
+  await peer.saveRecord({ form: pfh, values: { p: 'hi' } });
+  const peerBundle = await peer.exportBundle();
+
+  await nav('Outbox').click();
+  await page.locator('.co-import').waitFor({ state: 'attached', timeout: 2000 });
+  await page.locator('.co-import').setInputFiles({ name: 'peer.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(peerBundle)) });
+  await page.waitForFunction(() => /Imported\b.*1 record\b.*1 form\b/.test(document.querySelector('.co-toast')?.textContent || ''), undefined, { timeout: 3000 });
+  await nav('Forms').click();
+  await page.locator('.co-formrow', { hasText: 'Imported Peer Form' }).waitFor({ timeout: 3000 });
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, inbound capsule + share round-trip');
+  console.log('✓ collector smoke passed — shell, capture→blob→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import (union)');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

@@ -383,26 +383,29 @@ export async function mountShell(store, root) {
     const forms = await store.listForms();
     const titleByHash = Object.fromEntries(forms.map((f) => [f.hash, f.title]));
 
-    if (!recs.length) { v.append(ce('p', 'co-empty', 'No records yet — fill a form to collect one.')); return v; }
-
-    // group by form (collector browses *your own* records; the union is the mill — §2)
-    const groups = {};
-    for (const r of recs) (groups[r.form] = groups[r.form] || []).push(r);
-    for (const [hash, rows] of Object.entries(groups)) {
-      v.append(ce('div', 'co-group', titleByHash[hash] || hash.slice(0, 19) + '…'));
-      for (const r of rows.slice().reverse()) {
-        const row = ce('div', 'co-rec');
-        row.append(ce('span', 'co-rec-id', '#' + r.counter));
-        const state = ce('span', 'co-rec-state ' + (r.backedUp ? 'ok' : 'warn'), r.backedUp ? 'backed up' : 'on device only');
-        row.append(state);
-        if (r.hasAttachments) row.append(ce('span', 'co-rec-att', '📎'));
-        if (r.kind && r.kind !== 'record') row.append(ce('span', 'co-rec-kind', r.kind));
-        v.append(row);
+    if (!recs.length) {
+      v.append(ce('p', 'co-empty', 'No records yet — fill a form to collect one, or import an archive below.'));
+    } else {
+      // group by form (collector browses *your own* records; the union is the mill — §2)
+      const groups = {};
+      for (const r of recs) (groups[r.form] = groups[r.form] || []).push(r);
+      for (const [hash, rows] of Object.entries(groups)) {
+        v.append(ce('div', 'co-group', titleByHash[hash] || hash.slice(0, 19) + '…'));
+        for (const r of rows.slice().reverse()) {
+          const row = ce('div', 'co-rec');
+          row.append(ce('span', 'co-rec-id', '#' + r.counter));
+          const state = ce('span', 'co-rec-state ' + (r.backedUp ? 'ok' : 'warn'), r.backedUp ? 'backed up' : 'on device only');
+          row.append(state);
+          if (r.hasAttachments) row.append(ce('span', 'co-rec-att', '📎'));
+          if (r.kind && r.kind !== 'record') row.append(ce('span', 'co-rec-kind', r.kind));
+          v.append(row);
+        }
       }
     }
 
-    // send is opt-in (§5); network sync isn't built yet, so the honest action here
-    // is the durability floor: an off-device archive export.
+    // send is opt-in (§5). Network carriers aren't built yet; the working carriers
+    // are the archive file — export (the durability floor) and import (set-union
+    // merge — pull a peer's bundle in, conflict-free, sigs verified — §6).
     const actions = ce('div', 'co-actions');
     const exp = ce('button', 'co-btn', 'Export archive');
     exp.addEventListener('click', async () => {
@@ -410,6 +413,23 @@ export async function mountShell(store, root) {
       await store.markExported(); await render();
     });
     actions.append(exp);
+
+    const imp = ce('label', 'co-btn co-ghost'); imp.textContent = 'Import archive';
+    const impInput = ce('input', 'co-import'); impInput.type = 'file'; impInput.accept = '.json'; impInput.hidden = true;
+    impInput.addEventListener('change', async () => {
+      const f = impInput.files && impInput.files[0];
+      if (!f) return;
+      try {
+        const r = await store.importBundle(JSON.parse(await f.text()));
+        const bits = [`${r.records} record${r.records === 1 ? '' : 's'}`, `${r.forms} form${r.forms === 1 ? '' : 's'}`];
+        if (r.skipped) bits.push(`${r.skipped} already had`);
+        if (r.rejected) bits.push(`${r.rejected} rejected`);
+        toast('Imported ' + bits.join(' · '));
+        await render();
+      } catch (e) { toast('Import failed: ' + e.message); }
+    });
+    imp.append(impInput); actions.append(imp);
+
     const send = ce('button', 'co-btn co-ghost', 'Send over network · (soon)'); send.disabled = true;
     actions.append(send);
     v.append(actions);

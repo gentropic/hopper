@@ -9,7 +9,7 @@
 import { generateStreamKey } from '../records/crypto.js';
 import { streamId, contentAddress, bytesToB64Url } from '../records/address.js';
 import { canonicalize } from '../records/jcs.js';
-import { makeRecord } from '../records/envelope.js';
+import { makeRecord, verifyRecord } from '../records/envelope.js';
 
 const encStr = (s) => new TextEncoder().encode(s);   // distinct name (flat build: one shared scope)
 const dirname = (p) => p.slice(0, p.lastIndexOf('/')) || '/';
@@ -119,16 +119,53 @@ export function createStore(backend) {
 
   // ---- durability (DECISIONS §1) ----
 
-  // A faithful repo snapshot for off-device backup — streams + forms + this
-  // stream's records. Excludes /identity.json (it holds the private key; key
-  // backup is a separate, deliberate flow). Records stay verifiable: their
-  // signatures check against the pubkey in streams/<sid>.json, also included.
+  // A faithful repo snapshot — streams + forms + records from *every* stream we
+  // hold (not just our own), so the bundle is a complete grow-only-set carrier:
+  // re-exporting after an import gossips a peer's records onward (SPEC-records §6).
+  // Excludes /identity.json (it holds the private key; key backup is a separate,
+  // deliberate flow). Records stay verifiable: their signatures check against the
+  // pubkey in streams/<sid>.json, also included. Values-first — attachment blobs
+  // are not bundled here; they take the fat-pipe lane, bound by hash (§8).
   async function exportBundle() {
     const out = { v: 1, streams: {}, forms: {}, records: [] };
     for (const n of await listDir('/streams')) out.streams[n] = await readJSON(`/streams/${n}`);
     for (const n of await listDir('/forms')) out.forms[n] = await readJSON(`/forms/${n}`);
-    const rdir = `/records/${identity.streamId}`;
-    for (const n of (await listDir(rdir)).slice().sort()) out.records.push(await readJSON(`${rdir}/${n}`));
+    for (const sid of (await listDir('/records')).slice().sort())
+      for (const n of (await listDir(`/records/${sid}`)).slice().sort())
+        out.records.push(await readJSON(`/records/${sid}/${n}`));
+    return out;
+  }
+
+  // The merge that *is* sync (SPEC-records §6): union a peer's bundle into the
+  // local repo, keyed by address/id. Conflict-free — immutable, content/id-addressed
+  // objects, one writer per stream, so "already have it" ⇒ skip. Every record is
+  // verified against its stream's pubkey before it's accepted (§7); a tampered or
+  // unverifiable record is rejected, never written. Transport-free (an archive
+  // file), so it's the floor carrier and the place the merge logic lives.
+  async function importBundle(bundle) {
+    if (!bundle || bundle.v !== 1) throw new Error('unrecognized bundle (expected { v: 1, … })');
+    const out = { streams: 0, forms: 0, records: 0, skipped: 0, rejected: 0 };
+
+    for (const [name, reg] of Object.entries(bundle.streams || {})) {
+      const p = `/streams/${name}`;
+      if (!(await backend.exists(p))) { await writeJSON(p, reg); out.streams += 1; }
+    }
+    for (const [name, tree] of Object.entries(bundle.forms || {})) {
+      const p = `/forms/${name}`;
+      if (!(await backend.exists(p))) { await writeJSON(p, tree); out.forms += 1; }
+    }
+    for (const rec of bundle.records || []) {
+      const [sid, c] = String(rec && rec.id).split('/');
+      const counterN = Number(c);
+      if (!sid || !Number.isInteger(counterN)) { out.rejected += 1; continue; }
+      const reg = (bundle.streams && bundle.streams[`${sid}.json`]) || await readJSON(`/streams/${sid}.json`);
+      if (!reg || !reg.pubkey || !(await verifyRecord(rec, reg.pubkey))) { out.rejected += 1; continue; }
+      const p = `/records/${sid}/${pad(counterN)}.json`;
+      if (await backend.exists(p)) { out.skipped += 1; continue; }
+      await writeJSON(p, rec);
+      out.records += 1;
+    }
+    counter = (await listDir(`/records/${identity.streamId}`)).length;   // keep our own counter monotonic
     return out;
   }
 
@@ -172,6 +209,6 @@ export function createStore(backend) {
 
   return {
     init, putForm, saveBlob, getBlob, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
-    exportBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
+    exportBundle, importBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }
