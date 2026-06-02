@@ -108,6 +108,32 @@ test('store: folder mirror backfills + ongoing-writes blobs', async () => {
   assert.ok(await folder.exists(`/blobs/${post}`), 'new blob lands in the folder too');
 });
 
+test('store: listForms + recordsView feed the collector shell', async () => {
+  const store = createStore(new MemoryBackend());
+  await store.init();
+  const f1 = await store.putForm(FORM);
+  const f2 = await store.putForm({ ...FORM, meta: { id: 'qf2', title: 'Second Form' } });
+
+  const forms = await store.listForms();
+  assert.equal(forms.length, 2);
+  const byHash = Object.fromEntries(forms.map((f) => [f.hash, f]));
+  assert.equal(byHash[f1].title, 'qf');                       // falls back to meta.id when no title
+  assert.equal(byHash[f2].title, 'Second Form');
+
+  await store.saveRecord({ form: f1, values: { site_id: 'A' }, attachments: { photo: { blob: 'sha256-x', mime: 'image/png', bytes: 1 } } });
+  await store.saveRecord({ form: f1, values: { site_id: 'B' } });
+
+  let view = await store.recordsView();
+  assert.deepEqual(view.map((r) => r.counter), [0, 1]);
+  assert.deepEqual(view.map((r) => r.backedUp), [false, false], 'nothing backed up yet');
+  assert.deepEqual(view.map((r) => r.hasAttachments), [true, false]);
+  assert.equal(view[0].form, f1, 'records carry their form hash (group-by-form in Outbox)');
+
+  await store.markExported();                                  // exports through count=2
+  view = await store.recordsView();
+  assert.deepEqual(view.map((r) => r.backedUp), [true, true], 'both backed up after export');
+});
+
 test('store: identity + counter persist across reload (same backend)', async () => {
   const backend = new MemoryBackend();
   const s1 = createStore(backend);

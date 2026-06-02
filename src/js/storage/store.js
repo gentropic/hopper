@@ -89,6 +89,34 @@ export function createStore(backend) {
     return out;
   }
 
+  // The loaded form set (collector Forms screen): each stored definition with its
+  // hash + title. Forms are content-addressed (putForm), so this survives reloads.
+  async function listForms() {
+    const out = [];
+    for (const n of (await listDir('/forms')).slice().sort()) {
+      const tree = await readJSON(`/forms/${n}`);
+      if (tree) out.push({ hash: n.replace(/\.json$/, ''), tree, title: (tree.meta && (tree.meta.title || tree.meta.id)) || 'Untitled' });
+    }
+    return out;
+  }
+
+  // Records annotated for the Outbox: their counter, whether a copy exists
+  // off-device (folder mirror auto-backs-up everything; export covers records up
+  // to its mark), and whether they carry attachments. Honest about sync state —
+  // network sync isn't built yet, so "backed up" means folder/export, not "sent".
+  async function recordsView() {
+    const m = await readJSON('/export-meta.json');
+    const exportedThrough = (m && m.count) || 0;
+    return (await listRecords()).map((r) => {
+      const counter = Number(String(r.id).split('/')[1]);
+      return {
+        ...r, counter,
+        backedUp: !!mirror || counter < exportedThrough,
+        hasAttachments: !!(r.attachments && Object.keys(r.attachments).length),
+      };
+    });
+  }
+
   // ---- durability (DECISIONS §1) ----
 
   // A faithful repo snapshot for off-device backup — streams + forms + this
@@ -143,7 +171,7 @@ export function createStore(backend) {
   }
 
   return {
-    init, putForm, saveBlob, getBlob, saveRecord, listRecords, identity: () => identity, count: () => counter,
+    init, putForm, saveBlob, getBlob, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
     exportBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }

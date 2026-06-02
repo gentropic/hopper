@@ -1,6 +1,7 @@
-// Browser smoke test for the renderer — drives the built collector.html in a
-// real Chromium (Playwright, dev-only). The headless engine is unit-tested in
-// node; this confirms the DOM layer + reactivity actually work in a browser.
+// Browser smoke test for the collector — drives the built collector.html in a
+// real Chromium (Playwright, dev-only). The headless engine + store are unit-
+// tested in node; this confirms the shell (Forms · Fill · Outbox · Settings),
+// the DOM layer, and reactivity actually work in a browser.
 // Served over http://localhost (a secure context) so capture widgets that need
 // one — geolocation, camera/mic — can run; file:// would block them.
 // Run: node build.js && node tools/smoke-render.mjs
@@ -21,15 +22,22 @@ page.on('pageerror', (e) => errors.push(String(e)));
 
 const shutdown = async () => { await browser.close(); await srv.close(); };
 
-try {
-  await page.goto(srv.url);
-  await page.waitForSelector('.hf-form', { timeout: 5000 });
+const nav = (name) => page.locator('.co-nav button', { hasText: name });
 
-  // form rendered
-  assert.equal(await page.locator('.hf-form').count(), 1, 'form renders');
+try {
+  page.on('download', (d) => d.cancel());
+  await page.goto(srv.url);
+
+  // shell boots on the Forms screen with the seeded demo form listed
+  await page.waitForSelector('.co-nav', { timeout: 5000 });
+  const demoRow = page.locator('.co-formrow', { hasText: 'QF Sample Log (demo)' });
+  await demoRow.waitFor({ state: 'visible', timeout: 3000 });
+
+  // open it → the Fill screen renders the form through the engine
+  await demoRow.click();
+  await page.waitForSelector('.hf-form', { timeout: 3000 });
   assert.ok((await page.getByText('Site ID').count()) >= 1, 'site_id field present');
   assert.ok((await page.locator('.hf-capture').count()) >= 1, 'geo capture control renders');
-  // (not clicked — geolocation needs a secure context, i.e. served, not file://)
 
   // relevance: "Why resample?" hidden until resample = yes
   const why = page.locator('.hf-field').filter({ hasText: 'Why resample?' });
@@ -42,49 +50,65 @@ try {
   await page.waitForFunction(() => document.querySelector('.hf-calc')?.textContent === '1', undefined, { timeout: 2000 });
 
   // constraint inside a repeat: an out-of-range Fe % shows its validation message
-  // (proves the per-instance validity effect fires; the instance has >1 error span)
   await page.locator('.hf-instance input[type="number"]').first().fill('140');
   await page.waitForFunction(
     () => [...document.querySelectorAll('.hf-instance .hf-error')].some((e) => e.textContent.includes('100')),
     undefined, { timeout: 2000 });
+  await page.locator('.hf-instance input[type="number"]').first().fill('64');   // fix it before saving
 
-  // media capture: a file/camera input → bytes → store.saveBlob (real IDB binary
-  // write, content-addressed) → the field's attachment ref; the widget shows the
-  // stored blob's hash + size, proving the whole capture→blob path ran in-browser
+  // media capture: file/camera input → bytes → store.saveBlob (real IDB binary
+  // write, content-addressed) → attachment ref; widget shows the stored hash+size
   await page.locator('.hf-media input[type="file"]').setInputFiles({ name: 'outcrop.png', mimeType: 'image/png', buffer: PNG_1PX });
   await page.waitForFunction(() => /✓.*sha256-/.test(document.querySelector('.hf-media-val')?.textContent || ''), undefined, { timeout: 3000 });
 
-  // save → signs an immutable record (Ed25519: native or bundled noble fallback)
-  // → persists to IndexedDB → the single-copy durability warning appears.
-  // The saved record binds the captured photo by hash in its `attachments` (§8).
-  page.on('download', (d) => d.cancel());
+  // save → signs an immutable record → appends to the outbox; the fill view resets
+  // with a flash, the Outbox nav count ticks, and the single-copy warning appears
   await page.locator('.hf-field').filter({ hasText: 'Site ID' }).locator('input').fill('QF-SMOKE');
   await page.getByRole('button', { name: 'Save record' }).click();
-  await page.waitForFunction(() => /saved ✓/.test(document.querySelector('.hf-out')?.textContent || ''), undefined, { timeout: 5000 });
-  await page.waitForFunction(() => document.querySelector('.hf-warn')?.dataset.unbacked === '1', undefined, { timeout: 2000 });
+  await page.waitForSelector('.co-flash', { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector('.co-warn')?.dataset.unbacked === '1', undefined, { timeout: 2000 });
+  await nav('Outbox').waitFor();
+  assert.match(await nav('Outbox').textContent(), /Outbox \(1\)/, 'outbox count reflects the saved record');
 
-  // export off-device → the single-copy warning clears (durability floor, DECISIONS §1)
-  await page.getByRole('button', { name: 'Export all' }).click();
-  await page.waitForFunction(() => !document.querySelector('.hf-warn'), undefined, { timeout: 2000 });
+  // Outbox: the record is listed, single-copy, carrying its photo attachment
+  await nav('Outbox').click();
+  await page.waitForSelector('.co-rec', { timeout: 2000 });
+  assert.equal(await page.locator('.co-rec-state.warn').count(), 1, 'record shows "on device only"');
+  assert.equal(await page.locator('.co-rec-att').count(), 1, 'record carries an attachment marker');
 
-  // load a real form from a file (@gcu/yaml) → the whole UI re-renders from the tree
-  await page.locator('.hf-toolbar input[type="file"]').setInputFiles('examples/qf-sample-log.yaml');
-  await page.waitForFunction(() => document.querySelector('.hf-app h1')?.textContent === 'QF Sample Log', undefined, { timeout: 3000 });
+  // export archive → off-device copy → warning clears, state flips to backed up
+  await page.getByRole('button', { name: 'Export archive' }).click();
+  await page.waitForFunction(() => document.querySelector('.co-warn')?.hidden !== false, undefined, { timeout: 2000 });
+  await page.waitForSelector('.co-rec-state.ok', { timeout: 2000 });
+
+  // Settings: the trust readout (persistence badge, identity, theme)
+  await nav('Settings').click();
+  await page.waitForSelector('.co-sec', { timeout: 2000 });
+  assert.ok((await page.locator('.hf-badge').count()) >= 1, 'persistence badge renders');
+  assert.ok((await page.locator('.co-legend .co-sw').count()) === 6, 'six-accent legend in About');
+
+  // add a form from a file (@gcu/yaml) → jumps into Fill with the new title
+  await nav('Forms').click();
+  await page.locator('.co-addrow').click();
+  await page.locator('.co-sheet .co-file').setInputFiles('examples/qf-sample-log.yaml');
+  await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'QF Sample Log', undefined, { timeout: 3000 });
   assert.ok((await page.getByText('Lithology').count()) >= 1, 'loaded form fields render');
 
-  // load an actual .xlsx (bundled SheetJS parses it in-browser → re-render)
+  // add an actual .xlsx (bundled SheetJS parses it in-browser)
   const t = { type: 'form', meta: { id: 'imp', title: 'Imported XLSForm', version: '1', lang: 'en' }, fields: [{ name: 'station', fieldType: 'text', label: 'Station', props: {} }], choices: {}, rules: [], views: [] };
   const { survey, settings } = treeToXlsform(t);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(survey), 'survey');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(settings), 'settings');
   const buffer = Buffer.from(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
-  await page.locator('.hf-toolbar input[type="file"]').setInputFiles({ name: 'imported.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer });
-  await page.waitForFunction(() => document.querySelector('.hf-app h1')?.textContent === 'Imported XLSForm', undefined, { timeout: 3000 });
+  await nav('Forms').click();
+  await page.locator('.co-addrow').click();
+  await page.locator('.co-sheet .co-file').setInputFiles({ name: 'imported.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer });
+  await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Imported XLSForm', undefined, { timeout: 3000 });
   assert.ok((await page.getByText('Station').count()) >= 1, 'xlsx-loaded field renders');
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ renderer smoke passed — collect→capture(blob)→sign→IDB, durability, load yaml + xlsx');
+  console.log('✓ collector smoke passed — shell (Forms·Fill·Outbox·Settings), capture→blob→sign→IDB, durability, add yaml + xlsx');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

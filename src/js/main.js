@@ -26,4 +26,5 @@ import * as yaml from '../../vendor/yaml.js';  // @gcu/yaml (namespace-wrapped)
 import './formsource/load.js';   // → loadFormByName/Text: yaml/json → §8 tree
 import * as sheetjs from '../../vendor/sheetjs.mjs';  // SheetJS (bundled, namespace-wrapped)
 import './formsource/xlsx.js';   // → loadXlsx: .xlsx → §8 tree (the ODK on-ramp)
-import './boot.js';              // renders the form + save→store, registers the SW
+import './collector/shell.js';   // → mountShell: Forms · Outbox · Settings around the renderer
+import './boot.js';              // creates the store, mounts the shell, registers the SW
