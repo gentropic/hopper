@@ -28,6 +28,8 @@ Three commitments distinguish it from both the ODK stack it descends from and th
 
 It descends from ODK and stays compatible with it: XLSForm is a first-class interchange format (SPEC-hopper-form §9), so Hopper is an on-ramp to and complement of the ODK ecosystem, not a rival to it.
 
+**On-ramps need mirroring off-ramps.** "Owned, not rented" only holds if data leaves as cleanly as it arrives — **lock-in is the asymmetry** (easy in, hard out, as walled note/forms apps are). So every on-ramp (XLSForm ← ODK, capsule/QR ← web, a planned QGIS plugin ← GIS) wants an off-ramp, in two flavors: **internal** — to GCU siblings (the *mill*, `weir`, `auditable`) *natively*, since they share the signed, content-addressed repo format (**SPEC-hopper-records**); and **external** — to open formats (CSV/Parquet, GeoJSON/GeoPackage, ODK submissions, Markdown + image bundles), the analysis-ready exports the *mill* is the hub for. The foundation is already off-rampable (`exportBundle` JSON, content-addressed blobs, XLSForm round-trip); off-ramps are mostly format adapters + the mill, not new core.
+
 ---
 
 ## 2. Topology

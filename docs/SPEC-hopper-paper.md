@@ -504,6 +504,17 @@ cover capsule sheet, the flag margins, the calibration target) all falls out of 
 layout engine. GCU "publishes a notebook" = generate the print-ready PDF from the form
 set, send it to a printer.
 
+**A *notes* edition (vs field-notes) — and the off-ramp.** Almost pure composition:
+the **free-write + margin-flags page** (§4) bound as a general note-taking notebook —
+the GCU-owned **Evernote / Rocketbook** form factor, but un-walled (back cover boots
+open software, §8; you host it). The *only* real difference from a field-notes edition
+is the **destination**: instead of records flowing to the records / mill / GIS pipeline,
+the captured notes (text-image attachments + flag tags) **off-ramp to a note surface** —
+`weir` or an `auditable` notebook — or out as Markdown + an image bundle. On-ramps need
+mirroring off-ramps (lock-in is the asymmetry); see SPEC-hopper §1. **Cross-repo
+dependency:** this is gated on **`weir` growing note-taking (with image notes)** — a
+sibling-side prerequisite, not Hopper's to build.
+
 ---
 
 *Geoscientific Chaos Union · spec CC0 · 2026 · single-file*
