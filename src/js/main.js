@@ -32,5 +32,6 @@ import './formsource/capsule.js'; // → resolveFormCapsule: capsule/URL → §8
 import '../../vendor/qrcodegen.js'; // Nayuki QR gen — classic global script, flat-inlined → `qrcodegen` global (share QR)
 import './sync/session.js';       // → syncSession: transport-agnostic bundle exchange + set-union merge
 import './sync/webrtc.js';        // → webrtcOffer/webrtcAnswer: serverless WebRTC channel (QR handshake)
+import './sync/handshake.js';     // → encodeHandshake/decodeHandshake: SDP ↔ QR (capsule-deflated)
 import './collector/shell.js';   // → mountShell: Forms · Outbox · Settings around the renderer
 import './boot.js';              // creates the store, mounts the shell, registers the SW
