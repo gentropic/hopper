@@ -473,4 +473,37 @@ precedent; v1 keeps extensions minimal (`show` + existing geo params).
 
 ---
 
+## 13. Bundle everything (incl. SheetJS) — single-file deploy beats a lean PWA
+
+**Decision.** Inline all code + deps into the one `collector.html` (SheetJS's
+~896 kB included). **Do not** code-split or lazy-load.
+
+**Why — and a standing guard against re-proposing lazy-loading.** Single-file
+deploy is load-bearing for Hopper: the owned, emailable, host-anywhere artifact.
+Lazy-loading trades that away (a chunk must ship alongside ⇒ no longer one file)
+for benefits that are small and one-time:
+- *Faster first load* — but the service worker caches the bundle after first
+  load, so every repeat open is identical regardless of size. One-time only.
+- *Cheaper updates* — a split chunk lets an app update re-ship only the changed
+  core, not all ~1.1 MB. Real, but only bites if you're shipping frequent updates
+  to deployed users (we aren't).
+
+Neither outweighs the ethos at our scale. And the deploy model is **one artifact,
+two contexts**, so there is no "PWA vs single-file" fork to maintain: *served*
+(https + the `manifest`/`sw`/icons shell) = full PWA (SW, persist, install,
+secure-context capture, OAuth); *opened from disk* (`file://`) = a degraded but
+working preview (no SW/persist/secure-context — the §9 "served-not-file" seam).
+Graceful degradation (guarded SW registration, capture stubs) is the only
+discipline this requires. Bundling is therefore the *correct* choice, not debt —
+it is what makes the single file genuinely self-contained.
+
+**If a future you is tempted to add lazy-loading:** the honest triggers are
+narrow — real field testing shows first-load on bad connections is a problem
+*and* you're shipping frequent updates to deployed users. Even then, the cleaner
+move is usually *"heavy authoring deps (SheetJS) live in the **jig** surface, not
+the field collector"* — not code-splitting the collector. Don't lazy-load on
+instinct; it undercuts the single-file artifact.
+
+---
+
 *Geoscientific Chaos Union · CC0 · 2026 · single-file*
