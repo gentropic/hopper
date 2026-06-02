@@ -21,10 +21,11 @@ The trick that makes this tractable: **because we hold the form definition, the
 printed sheet is its own scanning schema.** Reading is *sampling known zones
 against a known choice list*, not recognizing a generic document. That turns "OCR
 a form" (hard, generic, ML, server) into "read a mark at a known coordinate"
-(easy, deterministic, ours). Handwriting — the genuinely hard part — is treated
-as an **honest seam**, not overpromised: the default is to crop the written zone
-as an image attachment for later transcription, exactly the way the rest of
-Hopper handles media.
+(easy, deterministic, ours). Handwriting is handled by **how constrained the zone
+is**, not overpromised: **boxed digits** (and block-capitals) are recognized by a
+small bundled model — the segmentation a comb gives for free is exactly what makes
+this the solved, MNIST-shaped case — while **freeform/cursive** is cropped to an
+image attachment for later transcription, the way the rest of Hopper handles media.
 
 ## 1. Why paper, and why Hopper is the one to do it
 
@@ -136,21 +137,45 @@ A scan (live camera frame or an uploaded photo/scan) flows through:
 
 ## 6. Text & handwriting — the honest seam
 
-In-browser handwriting recognition is **not promised.** Two honest paths, both of
-which Hopper is *already built for*:
+The seam is drawn by **segmentation, not by "handwriting hard."** The genuinely
+unsolved-offline part of reading handwriting is *segmentation* (finding where one
+character ends and the next begins) and *cursive*; isolated, pre-segmented glyph
+*classification* is essentially solved (MNIST-class digit CNNs reach ~99.2%,
+ensembles ~99.7%+, roughly human-level on clean input). A **comb field hands us the
+segmentation for free** — one printed box per character → one isolated, centered
+glyph → exactly the setting where recognition works. So there are **three tiers**,
+chosen by how constrained the zone is:
 
-- **Default — crop-and-attach.** The write-in zone is cropped from the rectified
-  page and stored as a **content-addressed image attachment** (SPEC-hopper-records
-  §8) bound to the record, with the field value left empty/pending. "Scan now,
-  transcribe later" — by a human or a heavier tool on a bigger machine (the
-  **mill**). This is the single highest-value, lowest-risk capability: *even with
-  zero OCR, a clean cropped image of each answer next to its question is a huge
-  win* over re-keying whole sheets, and it reuses blob storage + append-only as-is.
-- **Opt-in — bundled OCR.** A build flavor may bundle `tesseract.js` (WASM) for
-  **comb-constrained** digits/characters only, where accuracy is real. It fights
-  the lean single-file ethos (a few MB), so it is a deliberate, labelled opt-in —
-  never the default, never silent. (The experimental browser `TextDetector` is too
-  unevenly supported to depend on.)
+- **(a) Boxed digits — bundled small digit model.** For `number`/`int`/`date`/`time`
+  combs, a purpose-built **digit CNN** classifies each cell. This is the
+  MNIST-shaped win, and — crucially — it is **light enough to fit the ethos**: a
+  quantized digit model is ~100–400 kB and runs in milliseconds per cell in
+  WASM/JS, *far* smaller than a general OCR engine. So this may be **bundled and
+  default-on for combs** (not a heavy opt-in), because the job is narrow and the
+  segmentation is given. The same approach extends to **boxed block-capital letters**
+  (the customs/postal-form convention). Fixed geometry helps twice: we know each
+  cell's exact rectangle, so we can subtract the printed box outline and extract a
+  clean, centered glyph before classifying. Per-cell **softmax confidence** flags
+  only shaky cells for review (§5/below); constraints + any check digits (rules)
+  catch the rest. *Honest limits:* per-digit accuracy is high but never perfect and
+  **compounds per field** (≈99%/digit → ≈96% over 4 digits), and a model must train
+  beyond MNIST's clean, US-centric styles — real field hands vary (crossed `7`,
+  upstroked `1`, slashed `0`, regional `4`/`9`), so augmentation and, over time,
+  **fine-tuning on a project's own returned sheets** matter. Never authoritative:
+  it proposes, the review step + constraints dispose.
+- **(b) Freeform text — crop-and-attach (the default for unconstrained zones).** A
+  `text` write-in zone is cropped from the rectified page and stored as a
+  **content-addressed image attachment** (SPEC-hopper-records §8) bound to the
+  record, value left pending. "Scan now, transcribe later" — by a human or a heavier
+  tool on a bigger machine (the **mill**). This is the highest-value, lowest-risk
+  capability: *even with zero recognition, a clean crop of each answer beside its
+  question is a huge win* over re-keying whole sheets, and it reuses blob storage +
+  append-only as-is. Cursive and connected script live here, not in (a).
+- **(c) General field OCR — heavy opt-in.** A build flavor *may* bundle
+  `tesseract.js` (WASM, a few MB) for broader recognition. It fights the lean
+  single-file ethos, so it is deliberate, labelled, and **never the default or
+  silent** — reserved for users who explicitly want it. (The experimental browser
+  `TextDetector` is too unevenly supported to depend on.)
 
 **Provenance note.** A screen-filled record is signed by the *filler's* key. A
 paper-ingested record is signed by the **scanner's** key — the scanner *attests* to
@@ -202,7 +227,9 @@ Paper is not only an input medium; it is a `capsule`-class transport:
 
 Named, not hidden (SPEC-hopper invariant #6):
 
-- **Handwriting ICR is not promised** — default is crop-and-attach (§6).
+- **Handwriting reading is tiered, not blanket-promised** — boxed digits/caps are
+  recognized (a small bundled model); freeform/cursive is crop-and-attach; general
+  field OCR is a heavy opt-in (§6). Recognition proposes; review + constraints dispose.
 - **Camera variance is real** — fiducials + the calibration wedge are *required*,
   not optional polish; without them, phone-photo OMR is unreliable.
 - **Print fidelity demands fixed geometry** — SVG/PDF at exact coordinates, never
@@ -221,8 +248,10 @@ vendored), **BarcodeDetector** (decode header QR + fiducials; already used),
 **canvas 2D** (homography rectification + zone sampling), the **§8 tree** (layout +
 read schema), **content-addressed blobs** (crop-and-attach; map rasters), and the
 **positional codec** (shared with QR/chirp). Layout generation emits **SVG/PDF** at
-fixed coordinates. OCR (`tesseract.js`) is an **opt-in build flavor** only. No
-server, no native scanner, no cloud.
+fixed coordinates. Recognition is right-sized to the job (§6): a **small bundled
+digit/box-glyph model** (~100–400 kB, WASM/JS) for combs — light enough to ship by
+default; **`tesseract.js`** only as a heavy, labelled opt-in for general field OCR.
+No server, no native scanner, no cloud.
 
 ## 11. Scope — tiers (build order)
 
@@ -230,12 +259,18 @@ server, no native scanner, no cloud.
   not scannable). Immediate utility. *(small)*
 - **Tier 1 — Smart paper (v1 target).** The fixed-geometry layout engine + header
   QR + corner fiducials + calibration wedge + OMR/comb zones + **text crop-and-
-  attach** + the read pipeline (§5) with human-review-before-commit. Deterministic,
-  offline, no ML. This is the headline capability.
-- **Tier 2 — Assisted text.** Opt-in bundled OCR for comb-constrained fields (§6).
+  attach** (§6b) + the read pipeline (§5) with human-review-before-commit.
+  Deterministic, offline, **no recognition model**. This is the headline capability.
+- **Tier 2 — Boxed-glyph recognition.** The small bundled **digit CNN** (and boxed
+  block-capitals) for combs (§6a): per-cell classification with confidence-flagged
+  review, clean box-subtracted glyph extraction, constraint/check-digit backstop.
+  Light enough (~100–400 kB) to become default-on for combs once proven. The
+  MNIST-shaped win — the part of "reading handwriting" that's actually solved.
 - **Tier 3 — Batch dewarp.** Photograph a stack; per-page self-identify + rectify.
 - **Tier 4 — Research.** Map sketch → georeferenced raster (§7); paper-as-carrier
   and records-on-paper (§8).
+- **Cross-cutting opt-in (any tier).** General field OCR via bundled `tesseract.js`
+  (§6c) — heavy, labelled, never default.
 
 **Out / deferred:** general-purpose document OCR; non-Hopper form scanning; survey-
 grade map georeferencing; automatic handwriting transcription as a default.
