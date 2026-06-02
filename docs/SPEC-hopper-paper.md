@@ -101,6 +101,33 @@ system. Every sheet carries four standing elements:
 4. **Field zones** — one positioned block per visible field (§4), each at a known
    rectangle the reader samples.
 
+### Layout is a sibling renderer backend — built once, not per-form
+
+The sheet is **generated from the §8 tree**, not hand-typeset. Where `render.js`
+draws the tree to the DOM, a **paper backend** draws the *same tree* to a
+fixed-geometry sheet: same relevance / choices / repeats (already solved), a
+different widget set. So this is not a second form engine — it's a second *drawing
+surface* for the one we have. The work is **front-loaded into one engine + a widget
+library with good defaults**, then forms inherit it the way they inherit the screen
+renderer today (auto-form first, per SPEC-hopper-form's auto-layout intent).
+
+- **Auto-layout + sparse hints.** Most forms should print correct-and-scannable with
+  zero tuning; authors reach for **view annotations** (form §8 `views`) only to nudge
+  — comb width, a 2-column bubble grid, "keep this group on one page." The hint layer
+  is the pressure valve between fully-auto and hand-set; aim for ~80% needing none.
+- **SVG fixed-geometry → snapshot-testable.** A generated SVG lands every zone at the
+  same millimetre, so layout gets a **golden-layout test suite** ("this tree → this
+  sheet") — verifiable, not vibes. This is the upside of *not* fighting reflowing CSS.
+- **The craft concentrates in the widget library.** Each paper widget (bubble grid,
+  digit comb, checkbox, write-in zone, map frame, exemplar strip) carries a real dual
+  constraint — comfortably **hand-fillable** *and* cleanly **machine-readable** — that
+  wants empirical tuning against real scans (bubble size, comb spacing, dropout/box
+  geometry), plus **BW-first, photocopy-survivable** typography (forms get copied;
+  toner is lost). This is the part that earns "apply as much good design as we can":
+  the engine makes forms *correct*; care in the widgets makes them *good to fill in
+  the rain*. Switchboard (Barlow / Space Mono, equipment-gray) is the starting palette,
+  but print is its own medium — hairlines, ink spread, exact physical size.
+
 ## 4. Field types on paper (§4 mapping)
 
 | §4 type | printed as | read as |
