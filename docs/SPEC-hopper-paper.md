@@ -1,0 +1,260 @@
+# SPEC-hopper-paper
+
+**System:** part of Hopper — see **SPEC-hopper** (architecture), **SPEC-hopper-form** (the format), **SPEC-hopper-collector** (the app)
+**Component:** paper capture — printable, machine-readable forms that round-trip to signed records, offline, with a phone camera
+**Status:** Draft v0.1 (design / roadmap)
+**Editor:** Arthur Endlein Correia (with Claude)
+**Last revised:** 2026-06-02
+**License:** spec CC0 · reference implementation MIT
+**Rides on:** SPEC-hopper-form §4/§8 (field types + canonical tree), SPEC-hopper-records §8/§10 (attachments + the positional codec), SPEC-hopper-rules (constraints, re-checked on ingest), SPEC-hopper-collector §6 (deploy / print).
+
+## Abstract
+
+A Hopper form is a **§8 tree**, and every surface is a *converter into that tree*
+(SPEC-hopper invariant #1). This document adds **two more serializations**: a
+**print view** (tree → a fixed-geometry, machine-readable sheet) and its inverse
+(**scan → a record**). The loop is *print → fill by hand → photograph → ingest*,
+and it runs **entirely offline, in the browser, on a phone camera** — no server,
+no cloud OCR, no dedicated scanner.
+
+The trick that makes this tractable: **because we hold the form definition, the
+printed sheet is its own scanning schema.** Reading is *sampling known zones
+against a known choice list*, not recognizing a generic document. That turns "OCR
+a form" (hard, generic, ML, server) into "read a mark at a known coordinate"
+(easy, deterministic, ours). Handwriting — the genuinely hard part — is treated
+as an **honest seam**, not overpromised: the default is to crop the written zone
+as an image attachment for later transcription, exactly the way the rest of
+Hopper handles media.
+
+## 1. Why paper, and why Hopper is the one to do it
+
+**Why paper at all.** Field reality outruns devices: dead zones, dead batteries,
+glare, gloves, regulatory wet-ink trails, enumerators who trust a clipboard over a
+phone, and the plain fact that paper is the most robust storage medium most teams
+already own. ODK and its kin went digital-first *precisely because paper's
+bottleneck is transcription* — and that bottleneck is exactly what a self-reading
+sheet attacks. Paper is Hopper's lowest carrier rung (SPEC-hopper-collector §5):
+the system should degrade all the way down to ink and still move data.
+
+**Why Hopper specifically.** "The definition is data" (SPEC-hopper §1) means the
+same tree that drives the screen renderer can drive a *printer*, and — read back —
+**the tree tells us where every field is and how to interpret a mark.** No other
+serialization work is needed: paper is two more views of the one contract. Most
+form / scanning systems must *infer* structure from the page; Hopper *prints the
+structure it will later read.*
+
+**Standing on prior art.** The lineage is well-trodden and we lean into it rather
+than reinvent: **OMR / Scantron** (bubble sheets — sample darkness in a known
+cell; brutally reliable, still used for exams and ballots); **Teleform / Cardiff**
+(designed forms with corner registration marks + character combs that read
+themselves); **SDAPS** (open-source LaTeX questionnaires with corner markers +
+checkboxes, scanned back — the closest precedent to Tier 1 here). The modern ML
+extraction stack (LayoutLM, Donut, cloud Document AI) is powerful but server-bound
+and heavy — *against* the ethos — so we take the deterministic OMR/zonal path and
+keep ML/OCR an explicit opt-in, never the default (§6).
+
+## 2. The core idea — schema-relative reading
+
+Hopper already has a family of **schema-relative carriers**: because the receiver
+holds the §8 tree, the carrier can be *dumb and positional*. The same idea appears
+in three media:
+
+| carrier | medium | speed | needs |
+|---------|--------|-------|-------|
+| **capsule / QR** | light | instant | a camera or a link |
+| **chirp** | sound | seconds | proximity + relative quiet |
+| **paper** | ink | a scan later | a printer + a camera |
+
+Paper is the slow, durable, no-live-device member. Its **reader is a codec into
+the canonical record** — the *same* "interpret-against-the-schema" core as the
+positional QR/chirp codec (SPEC-hopper-records §10). Build one and the others get
+cheaper; they share the schema-relative engine and differ only in how marks are
+carried. A scanned sheet therefore produces an ordinary §8 record, validated
+against the form's rules (SPEC-hopper-rules) on ingest like any other.
+
+## 3. Anatomy of a scannable sheet
+
+A sheet is **fixed-geometry** — laid out at exact millimetre coordinates as
+**SVG/PDF (or a canvas raster), not HTML + `@media print`**, which reflows
+unpredictably across browsers and printers. Deterministic geometry is
+load-bearing: the reader samples coordinates, so the print *is* the coordinate
+system. Every sheet carries four standing elements:
+
+1. **Header QR** — the form's **content-address** (which form + version), a
+   **sheet-instance id**, and the **page index / count**. A scanned page therefore
+   *self-identifies its schema and reassembles* multi-page sets. When the form is
+   small enough, the QR may carry the **form capsule itself** (§8) so a blank sheet
+   can bootstrap the form into a device with no network.
+2. **Corner fiducials** — registration markers at the page corners (QR
+   finder-patterns make excellent ones) so a phone photo can be **perspective-
+   corrected** (4-point homography → a rectified grid). Edge ticks aid long sheets.
+3. **A calibration strip** — a **grayscale step wedge** (e.g. 5–7 patches from
+   paper-white to ink-black) printed in a fixed zone, so the reader sets
+   **adaptive thresholds** from *this sheet under this light* rather than a global
+   guess. **BW-first**: the wedge alone handles exposure/contrast for monochrome
+   printing and lighting. Optional **color patches** add white-balance/de-shadow
+   when a color printer is available — a bonus, never a requirement.
+4. **Field zones** — one positioned block per visible field (§4), each at a known
+   rectangle the reader samples.
+
+## 4. Field types on paper (§4 mapping)
+
+| §4 type | printed as | read as |
+|---------|-----------|---------|
+| `select` / `yesno` | a row/column of **bubbles or boxes**, one per choice | OMR — darkest cell wins (constraint: exactly one) |
+| `multiselect` | bubbles/boxes per choice | OMR — each cell independently on/off |
+| `rank` | an **items × positions** bubble grid | OMR per row → the position chosen |
+| `number` / `int` / `date` / `time` | a **comb** (one box per digit/char) with the mask printed | per-box: opt-in digit OCR, or crop-and-transcribe (§6) |
+| `text` | a bounded **write-in zone** | **cropped as an image attachment** by default (§6); opt-in OCR if comb-constrained |
+| `barcode` | print the value's barcode/QR; or a write-in zone | scanned directly (we already read barcodes) |
+| `geo` (point) | a coordinate **comb**, or a marked point on a map (§7) | comb read, or map-pixel → coordinate |
+| `geotrace` / `geoshape` | a **map sketch zone** (§7) | dewarped, georeferenced raster + optional vectorization |
+| `note` | printed prose | — (not a field) |
+| `calc` / `hidden` | printed read-only, or omitted | — (recomputed on ingest from the read values) |
+| `photo` / `audio` / `video` / `file` | a "**capture on device**" note + a per-sheet QR | paper can't hold media; the QR links the sheet to a digital attachment added later |
+| `group` | a titled block | nested zones |
+| `repeat` | **K pre-printed instances** (K a print option) + a **continuation sheet** (own header QR, same sheet-instance id) | bounded cardinality per sheet — an honest constraint (§10) |
+
+## 5. The read pipeline (offline, in-browser)
+
+A scan (live camera frame or an uploaded photo/scan) flows through:
+
+1. **Locate + decode the header QR** → resolve the form's content-address to the
+   §8 tree (already local, or fetched once). Now the schema + zone map are known.
+2. **Detect the corner fiducials** → compute the homography → **rectify** the page
+   to canonical coordinates on a canvas.
+3. **Read the calibration wedge** → set per-sheet (and optionally per-region)
+   **thresholds** for ink vs paper; apply white-balance if color patches are present.
+4. **Sample each field zone** at its known rectangle: OMR cells → marks; combs →
+   per-box crops; write-in/map zones → cropped image regions.
+5. **Assemble a §8 record**, run the form's **constraints** (SPEC-hopper-rules) —
+   surfacing low-confidence or constraint-failing fields for **human review before
+   commit** — then sign and append it like any other record.
+
+**Batch mode** (Tier 3): point the camera at a *stack*; each page self-identifies
+(header QR) and rectifies (fiducials) independently, so a pile ingests in one pass.
+
+## 6. Text & handwriting — the honest seam
+
+In-browser handwriting recognition is **not promised.** Two honest paths, both of
+which Hopper is *already built for*:
+
+- **Default — crop-and-attach.** The write-in zone is cropped from the rectified
+  page and stored as a **content-addressed image attachment** (SPEC-hopper-records
+  §8) bound to the record, with the field value left empty/pending. "Scan now,
+  transcribe later" — by a human or a heavier tool on a bigger machine (the
+  **mill**). This is the single highest-value, lowest-risk capability: *even with
+  zero OCR, a clean cropped image of each answer next to its question is a huge
+  win* over re-keying whole sheets, and it reuses blob storage + append-only as-is.
+- **Opt-in — bundled OCR.** A build flavor may bundle `tesseract.js` (WASM) for
+  **comb-constrained** digits/characters only, where accuracy is real. It fights
+  the lean single-file ethos (a few MB), so it is a deliberate, labelled opt-in —
+  never the default, never silent. (The experimental browser `TextDetector` is too
+  unevenly supported to depend on.)
+
+**Provenance note.** A screen-filled record is signed by the *filler's* key. A
+paper-ingested record is signed by the **scanner's** key — the scanner *attests* to
+the transcription; the wet ink is not itself a signature. For audit, the whole
+rectified sheet image may be attached to the record as evidence. This is stated,
+not hidden (invariant #6): paper widens the trust boundary from "the author signed
+this" to "a known peer attests they transcribed this sheet."
+
+## 7. Map sketch → georeferenced raster
+
+The field-mapping case, and the most novel: **print a basemap, sketch on it by
+hand, scan it back to a georeferenced overlay.**
+
+- **Print.** A `geotrace`/`geoshape` (or a dedicated map field) prints a **basemap
+  tile at a known scale and extent**, with corner fiducials and the **ground-control
+  corner coordinates** baked into the sheet metadata (carried in the header QR or a
+  sidecar). The basemap may be a pre-cached raster (offline) or a plain graticule
+  when no imagery is available.
+- **Field use.** The mapper draws — a contact, a fault trace, a sample polygon,
+  flow directions — in ink, on paper, in the rain, with gloves.
+- **Scan.** Dewarp via the fiducials; because the printed extent's corner
+  coordinates are known, **the rectified image is georeferenced** by construction.
+  Output, bound to the record as attachments: (a) a **cleaned georeferenced raster**
+  — threshold the ink, optionally drop the basemap, keep just the annotation as a
+  transparent overlay with its world extent; and (b) *optionally* a **vectorization**
+  of the strokes into `geotrace`/`geoshape` coordinates for downstream query.
+- **Honest accuracy.** Precision is bounded by print scale + dewarp residual +
+  hand-sketch fidelity — a *field sketch*, georeferenced, not a survey instrument.
+  Stated plainly so nobody mistakes it for one.
+
+This gives offline, paper-based field mapping that **round-trips to georeferenced
+data** — a capability we believe is essentially absent in this corner of the
+toolspace, and a natural fit for Hopper's geoscience roots.
+
+## 8. Paper as a carrier (the reverse direction)
+
+Paper is not only an input medium; it is a `capsule`-class transport:
+
+- **Paper-as-capsule.** A blank sheet's header QR can carry the *form capsule*
+  itself → scanning a printed blank **bootstraps the form into a device with zero
+  network.** Hand someone a sheet; they get the digital form.
+- **Records on paper.** A *filled* record, encoded via the positional codec
+  (SPEC-hopper-records §10) and rendered as a dense OMR/QR block, makes paper an
+  **air-gapped sync medium** between two Hoppers — mail, fax, or hand-carry a record.
+  Conflict-free like every carrier, because the objects are immutable and
+  content-addressed (SPEC-hopper-records §6).
+
+## 9. Honest seams & non-goals
+
+Named, not hidden (SPEC-hopper invariant #6):
+
+- **Handwriting ICR is not promised** — default is crop-and-attach (§6).
+- **Camera variance is real** — fiducials + the calibration wedge are *required*,
+  not optional polish; without them, phone-photo OMR is unreliable.
+- **Print fidelity demands fixed geometry** — SVG/PDF at exact coordinates, never
+  reflowing print-CSS (§3).
+- **Repeat cardinality is bounded per sheet** — paper can't grow an array; print K
+  instances + continuation sheets (§4).
+- **Media fields can't live on paper** — photo/audio/file are captured on a device;
+  paper only links to them (§4).
+- **Provenance widens** — paper records are *attested by the scanner*, not signed by
+  the filler (§6).
+
+## 10. Stack
+
+Rides on what Hopper already has: **qrcodegen** (print the header QR; already
+vendored), **BarcodeDetector** (decode header QR + fiducials; already used),
+**canvas 2D** (homography rectification + zone sampling), the **§8 tree** (layout +
+read schema), **content-addressed blobs** (crop-and-attach; map rasters), and the
+**positional codec** (shared with QR/chirp). Layout generation emits **SVG/PDF** at
+fixed coordinates. OCR (`tesseract.js`) is an **opt-in build flavor** only. No
+server, no native scanner, no cloud.
+
+## 11. Scope — tiers (build order)
+
+- **Tier 0 — Print blank forms.** A print *view* of the tree (flow layout is fine;
+  not scannable). Immediate utility. *(small)*
+- **Tier 1 — Smart paper (v1 target).** The fixed-geometry layout engine + header
+  QR + corner fiducials + calibration wedge + OMR/comb zones + **text crop-and-
+  attach** + the read pipeline (§5) with human-review-before-commit. Deterministic,
+  offline, no ML. This is the headline capability.
+- **Tier 2 — Assisted text.** Opt-in bundled OCR for comb-constrained fields (§6).
+- **Tier 3 — Batch dewarp.** Photograph a stack; per-page self-identify + rectify.
+- **Tier 4 — Research.** Map sketch → georeferenced raster (§7); paper-as-carrier
+  and records-on-paper (§8).
+
+**Out / deferred:** general-purpose document OCR; non-Hopper form scanning; survey-
+grade map georeferencing; automatic handwriting transcription as a default.
+
+## 12. Worked flow
+
+A mapping team prints 40 **QF Sample Log** sheets before driving into a valley with
+no signal — each sheet a fixed-geometry page with a header QR (form hash + sheet
+id), corner fiducials, a grayscale wedge, bubble grids for lithology and a
+resample yes/no, digit combs for Fe %, a write-in box for notes, and a basemap tile
+for the outcrop sketch. In the field they fill them by hand in the rain. Back at
+camp, offline, one phone photographs the stack: each sheet self-identifies, dewarps
+against its fiducials, thresholds against its own wedge, and yields a §8 record —
+lithology and resample read cleanly as marks, Fe % from the comb, the note kept as
+a cropped image to type up later, the outcrop sketch saved as a georeferenced
+overlay. Constraints re-run on ingest; the surveyor reviews two low-confidence
+digits, commits, and the records are signed (attested by the camp phone) and queued
+in the outbox — never single-copy, ready to sync when signal returns.
+
+---
+
+*Geoscientific Chaos Union · spec CC0 · 2026 · single-file*

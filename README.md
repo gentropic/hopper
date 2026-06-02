@@ -39,6 +39,7 @@ design contract; the code in `src/` is the implementation.
 - **SPEC-hopper-collector** — the collector app: shell, records, storage, and
   the full sync carrier model.
 - **SPEC-hopper-records** — the signed record object model and the conflict-free union.
+- **SPEC-hopper-paper** — printable, machine-readable forms that scan back to records, offline (design / roadmap).
 - **DECISIONS.md** — design resolutions that amend the specs where they differ.
 
 ## Build order
