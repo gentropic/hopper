@@ -118,7 +118,22 @@ function renderField(form, node, inst) {
     input = document.createElement('input'); input.type = ft === 'datetime' ? 'datetime-local' : ft;
     input.value = getV() ?? '';
     input.addEventListener('input', () => setV(input.value || null));
-  } else if (['geo', 'geotrace', 'geoshape', 'photo', 'audio', 'video', 'file', 'barcode'].includes(ft)) {
+  } else if (ft === 'geo') {                 // single GPS point → { lat, lng, acc }
+    const box = el('div', 'hf-geo');
+    const btn = el('button', 'hf-capture'); btn.type = 'button'; btn.textContent = '📍 Capture GPS';
+    const val = el('span', 'hf-geo-val');
+    effect(() => { const v = getV(); val.textContent = v ? `${v.lat.toFixed(5)}, ${v.lng.toFixed(5)} (±${Math.round(v.acc)} m)` : ''; });
+    btn.addEventListener('click', () => {
+      if (!navigator.geolocation) { val.textContent = 'no geolocation'; return; }
+      btn.disabled = true; const prev = btn.textContent; btn.textContent = 'locating…';
+      navigator.geolocation.getCurrentPosition(
+        (p) => { setV({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }); btn.disabled = false; btn.textContent = prev; },
+        (e) => { val.textContent = 'failed: ' + e.message; btn.disabled = false; btn.textContent = prev; },
+        { enableHighAccuracy: true, timeout: 10000 });
+    });
+    box.append(btn, val);
+    input = box;
+  } else if (['geotrace', 'geoshape', 'photo', 'audio', 'video', 'file', 'barcode'].includes(ft)) {
     input = el('div', 'hf-stub'); input.textContent = `[${ft} capture — not yet implemented]`;
     wrap.append(input);
     effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });

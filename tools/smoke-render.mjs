@@ -22,6 +22,8 @@ try {
   // form rendered
   assert.equal(await page.locator('.hf-form').count(), 1, 'form renders');
   assert.ok((await page.getByText('Site ID').count()) >= 1, 'site_id field present');
+  assert.ok((await page.locator('.hf-capture').count()) >= 1, 'geo capture control renders');
+  // (not clicked — geolocation needs a secure context, i.e. served, not file://)
 
   // relevance: "Why resample?" hidden until resample = yes
   const why = page.locator('.hf-field').filter({ hasText: 'Why resample?' });
