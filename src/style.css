@@ -117,6 +117,14 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 
 .co-toast { position: fixed; left: 50%; bottom: 4.5rem; transform: translateX(-50%); background: var(--au-text); color: var(--au-bg); font-size: .8rem; padding: .5rem .9rem; border-radius: 6px; max-width: 90vw; z-index: 60; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
 
+.co-sync-body { display: flex; flex-direction: column; gap: .5rem; }
+.co-sync-hint { font-size: .82rem; color: var(--au-muted); margin: 0; }
+.co-sync-roles { display: flex; gap: .5rem; }
+.co-sync-step { font-family: var(--au-mono); font-size: .78rem; color: var(--au-muted); }
+.co-sync-status { font-size: .88rem; }
+.co-sync-ok { color: #3E7D54; }
+.co-sync-err { color: #C8443B; }
+
 .co-share .co-qr-wrap { display: flex; justify-content: center; margin: .25rem 0 .75rem; }
 .co-qr { width: 12rem; height: 12rem; max-width: 100%; background: #fff; border: 6px solid #fff; border-radius: 6px; }
 .co-share-toobig { color: #B8860B; font-size: .82rem; margin: .5rem 0 .75rem; }

@@ -12,6 +12,9 @@ import { startBarcodeScan } from '../renderer/scan.js';
 import { loadFormByName } from '../formsource/load.js';
 import { loadXlsx } from '../formsource/xlsx.js';
 import { resolveFormCapsule } from '../formsource/capsule.js';
+import { syncSession } from '../sync/session.js';
+import { webrtcOffer, webrtcAnswer } from '../sync/webrtc.js';
+import { encodeHandshake, decodeHandshake } from '../sync/handshake.js';
 import * as capsule from '../../../vendor/capsule.js';
 import * as vfs from '../../../vendor/vfs.js';
 
@@ -452,6 +455,81 @@ export async function mountShell(store, root, opts = {}) {
     return v;
   }
 
+  // Serverless WebRTC sync (§5.1–5.3): the two-scan QR handshake. One peer Starts
+  // (shows an offer code, scans the reply), the other Joins (scans the offer, shows
+  // a reply). Both then run `syncSession` over the live DataChannel → set-union merge.
+  // Camera + same-LAN required; no server. (Compaction of the QR is 2d — see handshake.js.)
+  function openSyncPeer() {
+    const scrim = ce('div', 'co-scrim');
+    const panel = ce('div', 'co-confirm co-sync');
+    panel.append(ce('h3', 'co-confirm-h', 'Sync with a peer'));
+    const body = ce('div', 'co-sync-body'); panel.append(body);
+    let teardown = () => {};                                  // closes the live peer connection
+    const closeBtn = ce('button', 'co-btn co-ghost', 'Close');
+    closeBtn.addEventListener('click', () => { try { teardown(); } catch {} scrim.remove(); });
+    const actions = ce('div', 'co-confirm-actions'); actions.append(closeBtn); panel.append(actions);
+    scrim.append(panel); document.body.append(scrim);
+
+    const status = (msg, cls) => body.replaceChildren(ce('div', 'co-sync-status' + (cls ? ' ' + cls : ''), msg));
+    const fail = (e) => status('Sync failed: ' + (e && e.message ? e.message : e), 'co-sync-err');
+    const showQR = (label, code) => { body.append(ce('div', 'co-sync-step', label)); const w = ce('div', 'co-qr-wrap'); w.append(qrSvg(code)); body.append(w); };
+    const scanControl = (label, onCode) => {
+      body.append(ce('div', 'co-sync-step', label));
+      const sbox = ce('div'); const sbtn = ce('button', 'co-btn', '📷 Scan'); body.append(sbox, sbtn);
+      let session = null;
+      sbtn.addEventListener('click', async () => {
+        if (session) { session.stop(); return; }
+        session = await startBarcodeScan(sbox, sbtn, onCode, () => { session = null; }, ['qr_code']);
+      });
+    };
+    const afterConnect = async (conn) => {
+      teardown = conn.close;
+      status('Syncing…');
+      const res = await syncSession(conn.channel, store);
+      conn.close(); teardown = () => {};
+      await render();                                        // refresh outbox counts / records
+      status(`Synced ✓ — received ${res.received.records}, sent ${res.sent.records} record${res.received.records === 1 && res.sent.records === 1 ? '' : 's'}`, 'co-sync-ok');
+    };
+
+    async function runOfferer() {
+      try {
+        status('Preparing your code…');
+        const offer = await webrtcOffer();
+        teardown = offer.close;
+        const code = await encodeHandshake(offer.sdp);
+        body.replaceChildren();
+        showQR('1 · Show this to your peer', code);
+        scanControl('2 · Scan their reply', async (text) => {
+          try { status('Connecting…'); await afterConnect(await offer.connect(await decodeHandshake(text))); }
+          catch (e) { fail(e); }
+        });
+      } catch (e) { fail(e); }
+    }
+    async function runAnswerer() {
+      try {
+        body.replaceChildren();
+        scanControl('1 · Scan your peer’s code', async (text) => {
+          try {
+            status('Preparing your reply…');
+            const answer = await webrtcAnswer(await decodeHandshake(text));
+            teardown = answer.close;
+            const code = await encodeHandshake(answer.sdp);
+            body.replaceChildren();
+            showQR('2 · Show this back to your peer', code);
+            body.append(ce('div', 'co-sync-status', 'Waiting to connect…'));
+            await afterConnect(await answer.connect());
+          } catch (e) { fail(e); }
+        });
+      } catch (e) { fail(e); }
+    }
+
+    body.append(ce('p', 'co-sync-hint', 'Both of you on the same wifi. One Starts and one Joins — then scan each other’s codes.'));
+    const roles = ce('div', 'co-sync-roles');
+    const start = ce('button', 'co-btn', 'Start'); start.addEventListener('click', runOfferer);
+    const join = ce('button', 'co-btn co-ghost', 'Join'); join.addEventListener('click', runAnswerer);
+    roles.append(start, join); body.append(roles);
+  }
+
   // ---- Outbox ----
   async function viewOutbox() {
     const v = ce('section', 'co-view');
@@ -530,8 +608,9 @@ export async function mountShell(store, root, opts = {}) {
     });
     imp.append(impInput); actions.append(imp);
 
-    const send = ce('button', 'co-btn co-ghost', 'Send over network · (soon)'); send.disabled = true;
-    actions.append(send);
+    const sync = ce('button', 'co-btn co-ghost', 'Sync with a peer');
+    sync.addEventListener('click', () => openSyncPeer());
+    actions.append(sync);
     v.append(actions);
     return v;
   }

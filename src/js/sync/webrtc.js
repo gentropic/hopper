@@ -52,6 +52,7 @@ export async function webrtcOffer(rtcConfig) {
   await waitIceComplete(pc);
   return {
     sdp: pc.localDescription.sdp,
+    close: () => { try { pc.close(); } catch {} },          // tear down if the handshake is abandoned
     async connect(answerSdp) {
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
       const channel = await channelWhenOpen(dc);
@@ -72,6 +73,7 @@ export async function webrtcAnswer(offerSdp, rtcConfig) {
   await waitIceComplete(pc);
   return {
     sdp: pc.localDescription.sdp,
+    close: () => { try { pc.close(); } catch {} },          // tear down if abandoned before connect
     async connect() {
       const channel = await channelPromise;
       return { channel, close: () => { channel.close(); pc.close(); } };

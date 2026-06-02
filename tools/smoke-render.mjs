@@ -214,6 +214,15 @@ try {
   });
   assert.deepEqual(sync, { a: 2, b: 2, aRecv: 1, bRecv: 1 }, 'WebRTC DataChannel sync unioned both records');
 
+  // (d.4) sync UI — the offerer path through the real shell: Outbox → "Sync with a
+  // peer" → Start → a handshake QR renders (real RTCPeerConnection offer + ICE +
+  // encodeHandshake + qrSvg). The scan/connect leg is camera-only, so it stops here.
+  await nav('Outbox').click();
+  await page.getByRole('button', { name: 'Sync with a peer' }).click();
+  await page.locator('.co-sync').getByRole('button', { name: 'Start' }).click();
+  await page.locator('.co-sync .co-qr').waitFor({ timeout: 8000 });
+  await page.locator('.co-sync').getByRole('button', { name: 'Close' }).click();
+
   // (e) offline: the service worker serves the cached shell for a navigation to
   // the bare origin "/" (not just the exact precached URL) — the durability point
   // of a served PWA. Wait for the SW to control the page, cut the network, reload.
