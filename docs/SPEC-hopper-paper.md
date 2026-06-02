@@ -146,23 +146,49 @@ segmentation for free** — one printed box per character → one isolated, cent
 glyph → exactly the setting where recognition works. So there are **three tiers**,
 chosen by how constrained the zone is:
 
-- **(a) Boxed digits — bundled small digit model.** For `number`/`int`/`date`/`time`
-  combs, a purpose-built **digit CNN** classifies each cell. This is the
-  MNIST-shaped win, and — crucially — it is **light enough to fit the ethos**: a
-  quantized digit model is ~100–400 kB and runs in milliseconds per cell in
-  WASM/JS, *far* smaller than a general OCR engine. So this may be **bundled and
-  default-on for combs** (not a heavy opt-in), because the job is narrow and the
-  segmentation is given. The same approach extends to **boxed block-capital letters**
-  (the customs/postal-form convention). Fixed geometry helps twice: we know each
-  cell's exact rectangle, so we can subtract the printed box outline and extract a
-  clean, centered glyph before classifying. Per-cell **softmax confidence** flags
-  only shaky cells for review (§5/below); constraints + any check digits (rules)
-  catch the rest. *Honest limits:* per-digit accuracy is high but never perfect and
-  **compounds per field** (≈99%/digit → ≈96% over 4 digits), and a model must train
-  beyond MNIST's clean, US-centric styles — real field hands vary (crossed `7`,
+- **(a) Boxed glyphs — bundled small classifier.** For comb fields, a purpose-built
+  CNN classifies each isolated cell. This is the MNIST-shaped win, and — crucially —
+  it is **light enough to fit the ethos**: a quantized model is ~100–400 kB and runs
+  in milliseconds per cell in WASM/JS, *far* smaller than a general OCR engine, so it
+  may be **bundled and default-on for combs**. Fixed geometry helps twice: we know
+  each cell's exact rectangle, so we subtract the printed box outline and extract a
+  clean, centered glyph before classifying. Per-cell **softmax confidence** flags only
+  shaky cells for review (§5); constraints + any check digits (rules) catch the rest.
+  Never authoritative: it *proposes*, the review step + constraints *dispose*.
+
+  The recognizable set widens by difficulty, gated by how much you constrain the cell:
+  - **Digits (0–9)** — the solved case (MNIST-class, ~99%+/cell clean). Default.
+  - **Boxed block-capitals (A–Z)** — *feasible as a stretch* (proven by decades of
+    commercial ICR on customs/postal forms; trained on **EMNIST**, the handwritten-
+    letters extension of MNIST). 26 classes means **more confusable pairs** (O/0/Q,
+    I/1/L, S/5, Z/2, B/8, U/V), so per-character accuracy is lower than digits — usable,
+    not flawless. **The bundle barely grows** (an EMNIST-class CNN is still hundreds of
+    kB); the cost is *accuracy and confusion*, not bytes. Lowercase / mixed-case /
+    cursive stay out (→ crop-and-attach, (b)).
+  - **Alphanumeric (0–9 + A–Z)** — the worst for confusion; only worth it when the
+    field genuinely needs it, and then lean hard on the levers below.
+
+  Two levers make the alphabet stretch actually work — and they're ones a generic OCR
+  can't pull, because **Hopper holds the schema:**
+  - **Restrict the alphabet per cell.** A field's type / `pattern` / choice list tells
+    the classifier the *valid class set per position* (often ≪ 26): a `select`
+    rendered as boxed text, a known code vocabulary, a date mask. Fewer classes →
+    fewer confusions. Where shapes are genuinely indistinguishable by hand (EMNIST
+    even *merges* such classes), output a small candidate set and let the
+    schema/vocabulary pick.
+  - **A recommended hand + a printed exemplar.** The sheet prints the canonical glyph
+    shapes (slashed `0`, crossed `7`, open `4`, barred `I`, etc.) **right beside the
+    comb** — a built-in, per-form character-formation guide co-designed with the
+    model's training set. It nudges the writer toward the forms the model expects and,
+    like Graffiti, **teaches a better hand by glancing at the examples**. Strictly a
+    booster: higher accuracy when followed, never *required* — crop-and-attach (b) is
+    always the floor for anyone who ignores it.
+
+  *Honest limits:* per-cell accuracy is high but never perfect and **compounds per
+  field** (≈99%/digit → ≈96% over 4 digits; letters worse), and a model must train
+  beyond MNIST/EMNIST's clean, US-centric styles — real field hands vary (crossed `7`,
   upstroked `1`, slashed `0`, regional `4`/`9`), so augmentation and, over time,
-  **fine-tuning on a project's own returned sheets** matter. Never authoritative:
-  it proposes, the review step + constraints dispose.
+  **fine-tuning on a project's own returned sheets** matter.
 - **(b) Freeform text — crop-and-attach (the default for unconstrained zones).** A
   `text` write-in zone is cropped from the rectified page and stored as a
   **content-addressed image attachment** (SPEC-hopper-records §8) bound to the
@@ -261,11 +287,13 @@ No server, no native scanner, no cloud.
   QR + corner fiducials + calibration wedge + OMR/comb zones + **text crop-and-
   attach** (§6b) + the read pipeline (§5) with human-review-before-commit.
   Deterministic, offline, **no recognition model**. This is the headline capability.
-- **Tier 2 — Boxed-glyph recognition.** The small bundled **digit CNN** (and boxed
-  block-capitals) for combs (§6a): per-cell classification with confidence-flagged
-  review, clean box-subtracted glyph extraction, constraint/check-digit backstop.
-  Light enough (~100–400 kB) to become default-on for combs once proven. The
-  MNIST-shaped win — the part of "reading handwriting" that's actually solved.
+- **Tier 2 — Boxed-glyph recognition.** The small bundled CNN for combs (§6a):
+  per-cell classification, confidence-flagged review, clean box-subtracted glyph
+  extraction, constraint/check-digit backstop, and the printed recommended-hand
+  exemplar. **Digits first** (MNIST-class, the solved win, default-on); **block-
+  capitals A–Z a stretch** (EMNIST-class — more confusable, leans on per-cell
+  alphabet restriction + the exemplar). Light enough (~100–400 kB) either way — the
+  cost of the alphabet is accuracy, not bytes. Lowercase/cursive stay in (b).
 - **Tier 3 — Batch dewarp.** Photograph a stack; per-page self-identify + rectify.
 - **Tier 4 — Research.** Map sketch → georeferenced raster (§7); paper-as-carrier
   and records-on-paper (§8).
