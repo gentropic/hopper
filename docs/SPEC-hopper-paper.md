@@ -357,6 +357,21 @@ sections) → **model** in the mill → **inspect** in **Portal** (the head-coup
 viewing mode — "lean to look around the deposit"; `auditable/spec_inbox/portal-spec.md`).
 The fiducial+pose detector (§3) and the One-Euro filter (§5) are shared across it.
 
+**Roadmap — a QGIS plugin (the GIS-interop on-ramp).** The natural authoring front-end
+for georeferenced map sheets: QGIS Print Layout already holds a map frame's **extent +
+CRS**, so a PyQGIS plugin can add the Hopper furniture (fiducials, header QR carrying
+the extent/CRS embedding, calibration strip, OMR zones) and export print-ready sheets
+that are **georeferenced by construction** — and **Atlas** generates one sheet per
+feature (drill site / grid cell / outcrop), i.e. a §13 *edition* in one export. It
+spans both directions: **author** (generate sheets from a real GIS project + basemaps)
+and **return** (ingest scans → dewarp via fiducials with known extent → load captured
+records + the cleaned sketch raster + vectorized strokes back as QGIS layers, closing
+the loop inside the GIS people already use). This is the GIS-side parallel to XLSForm:
+*interop, not lock-in*. Honest scope: a **separate QGIS-ecosystem deliverable** (Python/
+Qt, the QGIS plugin repo), not part of the single-file collector; exact furniture-to-map
+alignment is integration-tuning, but every datum needed is exposed by the layout API.
+Depth deferred to build time.
+
 ## 8. Paper as a carrier (the reverse direction)
 
 Paper is not only an input medium; it is a `capsule`-class transport:
@@ -428,7 +443,8 @@ No server, no native scanner, no cloud.
 - **Tier 3 — Batch dewarp.** Feed a stack ("✓ — next sheet"); per-page self-identify
   + rectify. Pairs with interactive capture's batch flow.
 - **Tier 4 — Research.** Map sketch → georeferenced raster (§7); paper-as-carrier
-  and records-on-paper (§8).
+  and records-on-paper (§8); the **QGIS plugin** authoring/ingest front-end (§7) — a
+  separate GIS-ecosystem deliverable.
 - **Cross-cutting opt-in (any tier).** General field OCR via bundled `tesseract.js`
   (§6c) — heavy, labelled, never default.
 
