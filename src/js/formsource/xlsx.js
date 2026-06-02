@@ -1,9 +1,11 @@
 // XLSForm (.xlsx) form source — SheetJS parses the binary into the survey/choices/
 // settings rows our converter already eats (SPEC-hopper-form §9). The ODK on-ramp.
 //
-// SheetJS is large (~900 kB); it's vendored and bundled for now (a known
-// lazy-load optimization for later). `workbookToTree` takes the XLSX module
-// injected so it's node-testable; `loadXlsx` uses the bundled one.
+// SheetJS is large (~900 kB) and **bundled, not lazy-loaded** — keeping the
+// single-file artifact self-contained is load-bearing for Hopper, so this is the
+// decided approach, not debt (DECISIONS §13; don't "optimize" it into a fetch).
+// `workbookToTree` takes the XLSX module injected so it's node-testable;
+// `loadXlsx` uses the bundled one.
 
 import * as sheetjs from '../../../vendor/sheetjs.mjs';
 import { xlsformToTree } from '../xlsform/index.js';

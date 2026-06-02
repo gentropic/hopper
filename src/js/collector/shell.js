@@ -326,7 +326,7 @@ export async function mountShell(store, root) {
       sheetOpen = false;
       current = { tree, hash }; fillFlash = '';
       await go('fill');                       // jump straight into the newly added form
-    } catch (e) { window.alert('Could not load form: ' + e.message); }
+    } catch (e) { toast('Could not load form: ' + e.message); }
   }
 
   // Add a capsule/link-resolved form, gated by a confirm preview, then open it.

@@ -1,8 +1,9 @@
 // Content-addressing & stream identity — SPEC-hopper-records §1, §3. Pure.
 //
-// Self-contained base64url for now; will delegate to the vendored @gcu/capsule
-// `bytesToB64Url` once vendored (same output). `crypto` is the Web Crypto global,
-// present in browsers and Node ≥ 20.
+// Self-contained base64url — **deliberately** dependency-free (same output as
+// @gcu/capsule's `bytesToB64Url`), so `records/` lifts cleanly into its own
+// published package; don't wire it to the vendored capsule. `crypto` is the Web
+// Crypto global, present in browsers and Node ≥ 20.
 
 const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
