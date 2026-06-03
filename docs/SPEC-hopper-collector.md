@@ -149,6 +149,25 @@ The collector ships as a **boring served PWA**: one HTML file, a web manifest, a
 
 **Secure context required.** Camera, microphone, and geolocation need HTTPS or an installed PWA; `file://` blocks exactly the device-dependent questions. So real deployments are served or installed, never loose files — which also aligns with the install+persist durability path (§4.2).
 
+**Packaging (built).** `npm run package` emits `dist/` (the served PWA: `index.html` +
+manifest + sw + icons + a BYO README listing the host options) and `hopper-collector.zip`,
+zero-dependency. All paths are relative → works at `/` and at a GitHub-Pages `/<repo>/`
+subpath. A Pages Action publishes `dist/` as the (auditable) GCU mirror. **Two distribution
+modes**, both first-class: the **full PWA** (installable, offline, camera/geo) and the
+**bare `index.html`** (emailed / on disk — data entry + the comment-durable copy, but no
+install/camera/geo). The `gentropic.org` mirror is a courtesy, never a precondition.
+
+**Updates — bulletproofed by the single file.** The SW cache is named for the build's
+**content hash**, so each release is a distinct cache that cleanly invalidates + re-caches
+— no manual cache-busting to forget. And the classic PWA-update footgun (a new shell
+loading a *stale* cached asset) **cannot happen here, because the whole app is one
+indivisible `index.html`** — there are no separate chunks to mismatch. So `skipWaiting`
+(update-on-next-load) is safe. ⚠ **Update UX is a deliberate roadmap item, not ad-hoc:**
+the one rule is *never interrupt a fill* — an offline-first collector keeps the field
+worker on their cached version (no surprise reloads, no lost draft); a "new version —
+reload?" prompt is offered, never forced, and never mid-collection. Reproducible builds
+(stamp + verify the artifact's hash) graduate the auditable-deploy promise; a follow-on.
+
 ---
 
 ## 7. Coverage

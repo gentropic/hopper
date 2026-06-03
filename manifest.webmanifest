@@ -2,7 +2,7 @@
   "name": "Hopper",
   "short_name": "Hopper",
   "description": "Serverless, offline-first field data collection.",
-  "start_url": "./collector.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

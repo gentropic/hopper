@@ -1,0 +1,41 @@
+# Publish the packaged collector to GitHub Pages — the optional GCU hosting mirror
+# (SPEC-hopper-collector §6). The live site is *exactly the packaged artifact* (dist/),
+# built fresh here, so it stays auditable. Zero runtime deps → no `npm ci` needed.
+#
+# Pages source must be set to "GitHub Actions" in repo Settings → Pages.
+# Deploys on push to main; trigger manually (Run workflow) for any branch.
+name: Deploy collector to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build + package
+        run: node build.js && node tools/package.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
