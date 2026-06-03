@@ -97,6 +97,21 @@ export function setLabel(tree, name, label) {
   return t;
 }
 
+// Set a select-family field's choice list (the inline choices editor). Ensures
+// props.list (defaults to the field name); empty choices delete the list.
+export function setChoices(tree, name, choices) {
+  const t = cloneTree(tree);
+  const loc = findField(t, name);
+  if (!loc) return t;
+  loc.field.props = loc.field.props || {};
+  const list = loc.field.props.list || name;
+  loc.field.props.list = list;
+  t.choices = t.choices || {};
+  if (choices && choices.length) t.choices[list] = choices.map((o) => ({ ...o }));
+  else delete t.choices[list];
+  return t;
+}
+
 // Upsert a rule. relevant/require/constrain/calculate/filter are 1-per-target
 // (replaced in place); `show` is keyed by {verb,label}; otherwise appended.
 export function setRule(tree, rule) {

@@ -14,7 +14,7 @@
 
 import { inferTree } from './infer.js';
 import { validateTree } from './validate.js';
-import { applyOverrides, findField, moveField, removeField, setLabel, setProps, renameField, addField } from './edit.js';
+import { applyOverrides, findField, moveField, removeField, setLabel, setProps, setChoices, renameField, addField } from './edit.js';
 import { createForm } from '../renderer/state.js';
 import { renderForm } from '../renderer/render.js';
 import { treeToXlsform } from '../xlsform/index.js';
@@ -27,6 +27,19 @@ import * as capsule from '../../../vendor/capsule.js';
 const jel = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const seamKey = (s) => `${s.type}:${Array.isArray(s.field) ? s.field.join('+') : s.field}`;
 const SELECT_FAMILY = ['select', 'multiselect', 'rank'];
+
+// Parse a comma/newline-separated list of option labels into §8 choices —
+// value = slugged label ([a-z0-9_-]+, deduped), label = the text as typed.
+function parseChoices(text) {
+  const seen = new Set(), out = [];
+  for (const raw of String(text).split(/[\n,]/)) {
+    const label = raw.trim(); if (!label) continue;
+    let value = label.toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'opt';
+    if (seen.has(value)) { let i = 2; while (seen.has(`${value}_${i}`)) i++; value = `${value}_${i}`; }
+    seen.add(value); out.push({ value, label });
+  }
+  return out;
+}
 
 // The field types offered in the per-row dropdown (a useful subset of §4 — the
 // full set stays valid, this is just the common authoring palette).
@@ -299,9 +312,17 @@ export function mountJig(root, opts = {}) {
     del.addEventListener('click', () => { draft = removeField(draft, f.name); rerender(); });
 
     row.append(ord, nameI, labelI, typeS, reqWrap, del);
-    if (f.fieldType === 'select' || f.fieldType === 'multiselect') {
-      const list = (draft.choices && draft.choices[f.props && f.props.list]) || [];
-      row.append(jel('div', 'jig-choices', list.length ? 'choices: ' + list.map((o) => o.label).join(', ') : 'no choices'));
+    if (SELECT_FAMILY.includes(f.fieldType)) {
+      const list = (f.props && f.props.list) || f.name;
+      const opts = (draft.choices && draft.choices[list]) || [];
+      const wrap = jel('div', 'jig-choices');
+      wrap.append(jel('span', 'jig-choices-lbl', 'choices'));
+      const inp = jel('input', 'jig-choices-edit');
+      inp.value = opts.map((o) => o.label).join(', ');
+      inp.placeholder = 'comma-separated, e.g. itabirite, quartzite';
+      inp.addEventListener('change', () => { draft = setChoices(draft, f.name, parseChoices(inp.value)); rerender(); });
+      wrap.append(inp);
+      row.append(wrap);
     } else if (f.fieldType === 'repeat') {
       row.append(jel('div', 'jig-choices', 'repeats: ' + (f.children || []).map((c) => c.name).join(', ')));
     }

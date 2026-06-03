@@ -93,7 +93,7 @@ re-implementation — so a tree that validates is one the engine can actually ev
 ### 3.4 `edit.js` — pure `tree → tree`
 
 `addField` · `removeField` · `moveField` · `setProps` · `setLabel` · `setRule` /
-`removeRule` · `renameField` · `groupIntoRepeat` · `applyOverrides` · `findField`. All immutable
+`removeRule` · `renameField` · `setChoices` · `groupIntoRepeat` · `applyOverrides` · `findField`. All immutable
 (`structuredClone`); the input is never mutated. `renameField` cascades the change
 through rule targets, `${refs}`, bare refs, and the leading segment of an aggregate
 path — while leaving string literals untouched (a single tokenizing pass mirroring the
@@ -113,7 +113,8 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
   import path); date cells stored as serials read as numbers — the type dropdown is the
   fallback.
 - **Schema** — the seam interview (rendered from `seams`), an editable field list
-  (rename / type / label / required / reorder / delete / add), and an identity picker.
+  (rename / type / label / required / reorder / delete / add, plus an inline
+  comma-separated **choices editor** for select-family fields), and an identity picker.
 - **Preview** — `renderForm(createForm(draft))`: the live WYSIWYG is the real renderer,
   for free.
 - **Export bar** — live `validateTree` status, plus **JSON**, **XLSForm `.xlsx`**
@@ -124,14 +125,17 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
 
 **In (v1, built):** deterministic per-column inference + the seam interview; **wide-format
 `repeat` detection** (embedded + trailing indexed column groups → a foldable repeat, §3.2);
-an editable auto-form; live preview; export to JSON, XLSForm, and capsule share; the
+an editable auto-form (incl. an inline comma-separated **choices editor** for
+select-family fields); live preview; export to JSON, XLSForm, and capsule share; the
 standalone surface and the embedded Build tab.
 
 **Deferred (named, not hidden):**
 - **`@gcu/yaml` export** — needs a `data→AST` builder for strict no-implicit-typing YAML;
   JSON already satisfies the §8 serialization contract, so a fragile hand-rolled emitter
   was not shipped. (`treeToYaml` is the follow-on.)
-- A full inline **choices editor** (v1 shows inferred choices, select↔text reversible).
+- A **richer choices editor** — the inline comma-separated editor ships (add/edit/clear
+  options, value = slugged label); deferred is the polish: per-option value vs. label,
+  reordering, and choice_filter / cascading selects.
 - **Rule-editing UI** (relevant / constrain / calculate) — inference emits no rules.
 - UI **container creation by hand** (nest a `group`, build a `repeat` manually) — wide
   repeats are *inferred* (§3.2), but there's no manual container-building UI yet; and a

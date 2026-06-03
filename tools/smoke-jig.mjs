@@ -80,6 +80,14 @@ try {
   assert.ok(survey.some((r) => r.type === 'geopoint'), 'geopoint emitted');
   assert.ok(choices.some((r) => r.label === 'itabirite'), 'choices sheet carries the inferred options');
 
+  // inline choices editor: lithology is the first select; add a third option and see
+  // it land in the live preview (and stay valid)
+  const lithChoices = page.locator('.jig-choices-edit').first();
+  await lithChoices.fill('itabirite, quartzite, schist');
+  await lithChoices.blur();
+  await page.locator('.jig-preview-host option', { hasText: 'schist' }).waitFor({ state: 'attached', timeout: 2000 });
+  await page.locator('.jig-valid.jig-ok').waitFor({ timeout: 2000 });
+
   // seam interview: flip lithology select → text; the type updates through the engine
   const seam = page.locator('.jig-seam', { hasText: 'choice list' });
   await seam.getByRole('button', { name: 'text' }).click();

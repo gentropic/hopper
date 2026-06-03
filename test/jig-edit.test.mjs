@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inferTree } from '../src/js/jig/infer.js';
 import {
   addField, removeField, moveField, setProps, setLabel,
-  setRule, removeRule, renameField, applyOverrides, findField, groupIntoRepeat,
+  setRule, removeRule, renameField, applyOverrides, findField, groupIntoRepeat, setChoices,
 } from '../src/js/jig/edit.js';
 import { validateTree } from '../src/js/jig/validate.js';
 import { treeToXlsform, xlsformToTree } from '../src/js/xlsform/index.js';
@@ -60,6 +60,19 @@ test('setProps — merge and null-delete', () => {
 
 test('setLabel', () => {
   assert.equal(findField(setLabel(base(), 'a', 'Alpha'), 'a').field.label, 'Alpha');
+});
+
+test('setChoices — populate a manual select, then clear it', () => {
+  // switch a text field to select, then give it choices (the inline editor path)
+  let t = applyOverrides(base(), { setType: { b: 'select' } });
+  assert.equal(validateTree(t).ok, false, 'a select with no choices is invalid');
+  t = setChoices(t, 'b', [{ value: 'x', label: 'X' }, { value: 'y', label: 'Y' }]);
+  const f = findField(t, 'b').field;
+  assert.equal(f.props.list, 'b', 'props.list defaulted to the field name');
+  assert.deepEqual(t.choices.b.map((o) => o.value), ['x', 'y']);
+  assert.equal(validateTree(t).ok, true, 'now valid with choices');
+  t = setChoices(t, 'b', []);
+  assert.equal(t.choices.b, undefined, 'empty choices clears the list');
 });
 
 test('setRule — upsert semantics', () => {
