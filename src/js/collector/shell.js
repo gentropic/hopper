@@ -488,7 +488,8 @@ export async function mountShell(store, root, opts = {}) {
       const res = await syncSession(conn.channel, store);
       conn.close(); teardown = () => {};
       await render();                                        // refresh outbox counts / records
-      status(`Synced ✓ — received ${res.received.records}, sent ${res.sent.records} record${res.received.records === 1 && res.sent.records === 1 ? '' : 's'}`, 'co-sync-ok');
+      const photos = (n) => (n ? ` + ${n} photo${n === 1 ? '' : 's'}` : '');
+      status(`Synced ✓ — received ${res.received.records} rec${photos(res.blobs.received)}, sent ${res.sent.records} rec${photos(res.blobs.sent)}`, 'co-sync-ok');
     };
 
     async function runOfferer() {

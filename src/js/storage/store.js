@@ -70,6 +70,24 @@ export function createStore(backend) {
     return (await backend.exists(p)) ? backend.readFile(p, 'bytes') : null;
   }
 
+  // Every attachment-blob hash referenced by any record (across all streams). The
+  // blob *bytes* sync separately (the fat lane, §8) — this is what they reconcile against.
+  async function referencedBlobs() {
+    const set = new Set();
+    for (const sid of await listDir('/records'))
+      for (const n of await listDir(`/records/${sid}`)) {
+        const r = await readJSON(`/records/${sid}/${n}`);
+        if (r && r.attachments) for (const a of Object.values(r.attachments)) if (a && a.blob) set.add(a.blob);
+      }
+    return [...set];
+  }
+  // Referenced blobs we don't hold — the "want" list the sync blob-lane requests (§8).
+  async function missingBlobs() {
+    const out = [];
+    for (const h of await referencedBlobs()) if (!(await backend.exists(`/blobs/${h}`))) out.push(h);
+    return out;
+  }
+
   // The save boundary: sign the values into an immutable record and append it.
   async function saveRecord({ form, values, attachments, kind, supersedes } = {}) {
     if (!identity) throw new Error('store not initialised');
@@ -212,7 +230,7 @@ export function createStore(backend) {
   }
 
   return {
-    init, putForm, saveBlob, getBlob, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
+    init, putForm, saveBlob, getBlob, referencedBlobs, missingBlobs, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
     exportBundle, importBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }

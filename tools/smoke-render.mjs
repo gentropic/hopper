@@ -201,6 +201,7 @@ try {
       return {
         exportBundle: async () => ({ v: 1, streams: {}, forms: {}, records: recs.map((r) => ({ ...r })) }),
         importBundle: async (b) => { let n = 0; for (const r of (b.records || [])) if (!recs.some((x) => x.id === r.id)) { recs.push(r); n++; } return { streams: 0, forms: 0, records: n, skipped: 0, rejected: 0 }; },
+        missingBlobs: async () => [],   // these fakes carry no attachments → blob lane no-ops
         count: () => recs.length,
       };
     };
