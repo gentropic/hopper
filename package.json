@@ -31,7 +31,8 @@
     "package": "node build.js && node tools/package.mjs",
     "test": "node --test",
     "smoke": "node build.js && node tools/smoke-render.mjs",
-    "test:all": "node --test && node build.js && node tools/smoke-render.mjs",
+    "smoke:jig": "node build.js --target=jig && node tools/smoke-jig.mjs",
+    "test:all": "node --test && node build.js && node tools/smoke-render.mjs && node build.js --target=jig && node tools/smoke-jig.mjs",
     "serve": "node tools/serve.mjs",
     "sync-vendor": "node tools/sync-vendor.mjs"
   },

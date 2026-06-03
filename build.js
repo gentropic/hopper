@@ -22,7 +22,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 
 const TARGETS = {
   collector: { manifest: 'src/js/main.js', template: 'src/template.html', out: 'collector.html', title: 'Hopper' },
-  // jig:  { manifest: 'src/js/main.jig.js',  template: 'src/template.html', out: 'jig.html',  title: 'Hopper · jig'  },
+  jig: { manifest: 'src/js/main.jig.js', template: 'src/template.html', out: 'jig.html', title: 'Hopper · jig' },
   // mill: { manifest: 'src/js/main.mill.js', template: 'src/template.html', out: 'mill.html', title: 'Hopper · mill' },
 };
 
