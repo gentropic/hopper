@@ -125,6 +125,15 @@ surface and the embedded Build tab.
 - **Draft persistence**; an optional **LLM-accelerated** inference lane (form §10 — the
   deterministic path is the contract; a model only speeds it, never required).
 - xlsx **date-cell** reading (serials); CSV is exact.
+- **Relational / multi-table inference** *(deferred-but-wanted; cross-project)* — today
+  inference is single-table and flat. A richer pass would take *several* tables and infer
+  the relations between them: a column whose values match another table's identity → a
+  `ref` (the `ref` seam form §10 names — AppSheet already does this same-name detection,
+  §7); repeating groups → `repeat`s; a star/normalized layout → nested containers. This is
+  genuinely a **shared capability**, not jig-specific — a `@gcu/schema-infer` that other
+  GCU projects (the mill, importers, `dd`) could reuse, with jig as its first consumer.
+  Keep it out of v1: it changes inference from per-column to per-*dataset* and wants its
+  own conformance corpus.
 
 ## 6. Tests
 
@@ -133,3 +142,37 @@ validate, and a **confidence round-trip**: an inferred tree validates *and* surv
 `treeToXlsform → xlsformToTree` still contract-valid). Browser: `tools/smoke-jig.mjs`
 drives `jig.html` (infer → preview → JSON + `.xlsx` exports parsed back), and the
 collector smoke exercises the **Build** tab (paste → infer → Use this form → fillable).
+
+## 7. Prior art & positioning
+
+Be honest about what is and isn't new — jig's *inference technique* is well-trodden; its
+*combination* is what's unoccupied.
+
+**The technique is mature and shipped elsewhere.** Generic "schema from example data" is
+everywhere: [`schema-infer`](https://github.com/triggerdotdev/schema-infer) (JSON Schema
+from samples, with date/time/uri/email format detection),
+[Frictionless `tableschema-py`'s `schema.infer`](https://github.com/frictionlessdata/tableschema-py)
+(types + constraints from a CSV — the closest formal cousin to §3.1's per-column pass),
+and data-pipeline tools like [Palantir Foundry](https://www.palantir.com/docs/foundry/building-pipelines/infer-schema).
+The strongest *direct* analogue is **Google AppSheet**, whose
+[column-type inference](https://support.google.com/appsheet/answer/10106435) reads both
+header names and row content — "Web Site" → URL, a `?`-suffixed header → Yes/No, a
+date-looking column → Date, **and a column whose name matches another table → a Ref**.
+That is nearly jig's exact playbook (header hints + value sniff), and it already does the
+cross-table ref-detection that is jig's deferred direction (§5) — useful confirmation the
+seam list points at the real ambiguities. [Glide](https://www.glideapps.com/data-sources/google-sheets)
+and Adalo are in the same "sheet → app" family.
+
+**The survey/ODK world is schema-first**, and that's the gap. "Create a form from data"
+tools there are *schema*-derived, not value-sniffed:
+[QRealTime](https://shivareddyiirs.github.io/QRealTime/) builds an ODK form from a QGIS
+layer's schema (like Survey123 from a feature service); XLSForm's data feature,
+[`select_one_from_file`](https://xlsform.org/en/), goes the other way (attach a CSV *as a
+choice source*). None infer a form from example *values*.
+
+**jig's niche is the combination, not the parts.** Data values → an **offline,
+XLSForm-compatible** survey form (an *on-ramp* to ODK/Kobo/Survey123, not a rival), with
+an **interactive seam interview** for the ambiguous calls, **serverless / single-file /
+owned** — no account, no cloud project, runs from disk. The AppSheet/Glide analogues are
+hosted SaaS that don't emit XLSForm or run offline; the ODK tools are schema-first. The
+framing line: *"the AppSheet idea, for the ODK ecosystem, without the cloud."*
