@@ -14,11 +14,13 @@ mostly-one-person experience.
 XLSForm is a first-class interchange format, so Hopper is an on-ramp to and
 complement of the ODK ecosystem, not a rival to it.
 
-**Status:** under active development. The offline collection loop works end to
-end — load / scan / share a form → fill → capture → sign → persist → back up →
-merge a peer's archive — in the built `collector.html`. Next: live sync carriers,
-then the builder (jig) and analysis console (mill). The specs in `docs/` are the
-design contract; the code in `src/` is the implementation.
+**Status:** under active development — **live at <https://gentropic.org/hopper/>**
+(installable PWA; push to `main` auto-deploys it). The offline collection loop works
+end to end — load / scan / share a form → fill → capture → sign → persist → back up →
+merge a peer's records *and their photos* over WebRTC (or an archive file). Next:
+hardening the sync carriers (QR-handshake compaction, Trystero), then the builder
+(jig) and analysis console (mill). The specs in `docs/` are the design contract; the
+code in `src/` is the implementation.
 
 ## Layout
 
