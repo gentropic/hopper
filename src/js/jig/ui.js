@@ -25,6 +25,8 @@ import * as sheetjs from '../../../vendor/sheetjs.mjs';
 import * as capsule from '../../../vendor/capsule.js';
 
 const jel = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const seamKey = (s) => `${s.type}:${Array.isArray(s.field) ? s.field.join('+') : s.field}`;
+const SELECT_FAMILY = ['select', 'multiselect', 'rank'];
 
 // The field types offered in the per-row dropdown (a useful subset of §4 — the
 // full set stays valid, this is just the common authoring palette).
@@ -95,6 +97,7 @@ export function mountJig(root, opts = {}) {
   let seams = [];
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
+  const answered = new Set();                   // seam keys the user has acted on → "✓ set" marker
 
   root.replaceChildren();
   const wrap = jel('div', 'jig-wrap');
@@ -155,6 +158,7 @@ export function mountJig(root, opts = {}) {
     const idc = res.seams.find((s) => s.type === 'identity'); if (idc) overrides.identity = idc.recommend;
     draft = applyOverrides(res.tree, overrides);
     seams = res.seams;
+    answered.clear();                           // fresh table → fresh questions
     rerender();
   }
 
@@ -188,26 +192,46 @@ export function mountJig(root, opts = {}) {
 
   function seamRelevant(s) {
     if (s.type === 'identity' || s.type === 'required') return false;          // identity handled below; required = row checkboxes
-    if (s.type === 'geo-merge') return findField(draft, s.field[0]) && findField(draft, s.field[1]);
+    if (s.type === 'geo-merge') return true;                                   // stays visible — resolves in place, never vanishes
     return !!(s.field && findField(draft, s.field));
   }
 
+  // a small green "✓ set" badge so an acted-on question reads as answered
+  const doneMark = () => jel('span', 'jig-done', '✓ set');
+
   function renderSeam(s) {
     const row = jel('div', 'jig-seam');
-    row.append(jel('div', 'jig-seam-q', s.question));
+    const q = jel('div', 'jig-seam-q', s.question);
+    row.append(q);
+    const isAnswered = answered.has(seamKey(s));
+
     if (s.type === 'select-or-text' || s.type === 'number-or-text') {
       const cur = findField(draft, s.field).field.fieldType;
-      const grp = jel('div', 'jig-toggle');
+      const grp = jel('div', 'jig-seg-group');
       for (const o of s.options) {
-        const b = jel('button', 'co-btn co-ghost' + (cur === o ? ' jig-on' : ''), o);
-        b.addEventListener('click', () => setFieldType(s.field, o));
+        const on = cur === o || (o === 'select' && SELECT_FAMILY.includes(cur));
+        const b = jel('button', 'jig-seg' + (on ? ' jig-seg-on' : ''), o);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.addEventListener('click', () => { answered.add(seamKey(s)); setFieldType(s.field, o); });
         grp.append(b);
       }
       row.append(grp);
+      if (isAnswered) q.append(doneMark());
     } else if (s.type === 'geo-merge') {
-      const b = jel('button', 'co-btn', 'Merge into a geo point');
-      b.addEventListener('click', () => { draft = applyOverrides(draft, { geoMerge: { lat: s.field[0], lng: s.field[1], into: 'location', label: 'Location' } }); rerender(); });
-      row.append(b);
+      const merged = !(findField(draft, s.field[0]) && findField(draft, s.field[1]));
+      if (merged) {
+        row.classList.add('jig-seam-done');
+        row.append(jel('div', 'jig-seg-done', `✓ Merged ${s.field[0]} + ${s.field[1]} → one geo point`));
+        q.append(doneMark());
+      } else {
+        const b = jel('button', 'co-btn', 'Merge into a geo point');
+        b.addEventListener('click', () => {
+          answered.add(seamKey(s));
+          draft = applyOverrides(draft, { geoMerge: { lat: s.field[0], lng: s.field[1], into: 'location', label: 'Location' } });
+          rerender();
+        });
+        row.append(b);
+      }
     }
     return row;
   }

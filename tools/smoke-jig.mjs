@@ -88,6 +88,9 @@ try {
       if (r.querySelector('.jig-name')?.value === 'lithology') return r.querySelector('.jig-type')?.value === 'text';
     return false;
   }, undefined, { timeout: 2000 });
+  // feedback: the chosen option is highlighted and the question is marked answered
+  await seam.locator('.jig-seg-on', { hasText: 'text' }).waitFor({ timeout: 2000 });
+  await seam.locator('.jig-done').waitFor({ timeout: 2000 });
 
   // a manual edit routes through the pure engine too: rename a field, preview re-renders
   const nameInput = page.locator('.jig-field', { has: page.locator('.jig-name') }).first().locator('.jig-name');

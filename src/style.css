@@ -181,8 +181,14 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .jig-seams { margin-bottom: .8rem; }
 .jig-seam { display: flex; flex-direction: column; gap: .3rem; padding: .5rem 0; border-bottom: 1px solid var(--au-border); }
 .jig-seam-q { font-size: .85rem; }
-.jig-toggle { display: inline-flex; gap: .35rem; }
-.jig-toggle .jig-on { background: var(--au-action); color: #fff; }
+.jig-seg-group { display: inline-flex; border: 1px solid var(--au-border); border-radius: 6px; overflow: hidden; }
+.jig-seg { font: inherit; font-size: .8rem; padding: .35rem .85rem; background: var(--au-bg); color: var(--au-text); border: none; border-right: 1px solid var(--au-border); cursor: pointer; transition: background .12s, color .12s; }
+.jig-seg:last-child { border-right: none; }
+.jig-seg:hover { background: var(--au-surface); }
+.jig-seg-on, .jig-seg-on:hover { background: var(--au-action); color: #fff; }   /* the chosen option, clearly filled */
+.jig-seg-done { font-size: .8rem; color: #3E7D54; }   /* go */
+.jig-done { margin-left: .5rem; font-size: .68rem; color: #3E7D54; font-family: var(--au-mono); letter-spacing: .03em; }
+.jig-seam-done { opacity: .8; }
 .jig-idrow { display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem; }
 .jig-idlabel { font-size: .8rem; color: var(--au-muted); }
 .jig-field { display: flex; align-items: center; gap: .4rem; padding: .35rem 0; flex-wrap: wrap; }
