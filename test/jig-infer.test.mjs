@@ -43,6 +43,16 @@ for (const c of cases) {
       assert.ok(s, `seam ${t} present`);
       assert.equal(s.recommend, rec, `seam ${t} recommend`);
     }
+    if (c.expectRepeat) {
+      const r = seams.find((s) => s.type === 'repeat');
+      assert.ok(r, 'repeat seam present');
+      assert.equal(r.field, c.expectRepeat.name, 'repeat name');
+      assert.deepEqual(r.members.slice().sort(), c.expectRepeat.members.slice().sort(), 'repeat members');
+      if (c.expectRepeat.childTypes) {
+        const types = Object.fromEntries(r.spec.children.map((ch) => [ch.name, ch.fieldType]));
+        for (const [n, t] of Object.entries(c.expectRepeat.childTypes)) assert.equal(types[n], t, `child ${n} type`);
+      }
+    }
     if (c.expectWarningMatch) assert.ok(warnings.some((w) => w.includes(c.expectWarningMatch)),
       `warning matching "${c.expectWarningMatch}"`);
   });

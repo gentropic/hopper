@@ -167,5 +167,33 @@ export function applyOverrides(tree, overrides = {}) {
     ll.field.name = into; ll.field.fieldType = 'geo'; ll.field.label = label; ll.field.props = ll.field.props || {};
     t = removeField(t, lng);
   }
+
+  // wide-format repeats: fold each spec's source columns into a repeat (applied
+  // last so identity/required on the surviving top-level fields still resolve).
+  for (const spec of overrides.repeats || []) {
+    if (spec && (spec.sources || []).every((n) => findField(t, n))) t = groupIntoRepeat(t, spec);
+  }
+  return t;
+}
+
+// Fold a set of top-level fields into a new `repeat` container — jig's wide-format
+// repeat seam (SPEC-hopper-jig §5). spec = { name, label, children:[fieldDef],
+// childChoices:{list:opts}, sources:[name] }. Idempotent: a no-op if the sources
+// are already gone (e.g. folded once). The records are not touched — this shapes
+// the form definition only.
+export function groupIntoRepeat(tree, spec) {
+  const t = cloneTree(tree);
+  const removed = new Set(spec.sources || []);
+  const positions = [];
+  t.fields.forEach((f, i) => { if (removed.has(f.name)) positions.push(i); });
+  if (!positions.length) return t;
+  const at = Math.min(...positions);
+  for (const f of t.fields) if (removed.has(f.name) && f.props && f.props.list && t.choices) delete t.choices[f.props.list];
+  t.fields = t.fields.filter((f) => !removed.has(f.name));
+  t.choices = t.choices || {};
+  for (const [list, opts] of Object.entries(spec.childChoices || {})) t.choices[list] = opts.map((o) => ({ ...o }));
+  const node = { name: spec.name, fieldType: 'repeat', label: spec.label || spec.name, props: {},
+    children: (spec.children || []).map((c) => ({ ...c, props: { ...(c.props || {}) } })) };
+  t.fields.splice(Math.min(at, t.fields.length), 0, node);
   return t;
 }

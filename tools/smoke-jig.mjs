@@ -98,8 +98,23 @@ try {
   await nameInput.blur();
   await page.locator('.jig-valid.jig-ok').waitFor({ timeout: 2000 });
 
+  // wide-format repeat: re-import a table with indexed column groups → the repeat
+  // seam offers to fold them; folding resolves in place and the preview shows a repeat
+  await page.locator('.jig-paste').fill('Site,sample1_lith,sample1_fe,sample2_lith,sample2_fe\nA,itabirite,58,quartzite,41\nB,schist,12,itabirite,60');
+  await page.getByRole('button', { name: 'Infer form' }).click();
+  await page.locator('.jig-field').first().waitFor({ timeout: 3000 });
+  const rseam = page.locator('.jig-seam', { hasText: 'into a repeat' });
+  await rseam.getByRole('button', { name: 'Make a repeat group' }).click();
+  await rseam.locator('.jig-seg-done', { hasText: 'Grouped into repeat' }).waitFor({ timeout: 2000 });
+  await page.waitForFunction(() => {
+    for (const r of document.querySelectorAll('.jig-field'))
+      if (r.querySelector('.jig-name')?.value === 'sample') return r.querySelector('.jig-type')?.value === 'repeat';
+    return false;
+  }, undefined, { timeout: 2000 });
+  await page.locator('.jig-preview-host').getByRole('button', { name: '+ add' }).first().waitFor({ timeout: 3000 });
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ jig smoke passed — infer types + seams, live preview, JSON + XLSForm export round-trip, seam toggle + rename through the engine');
+  console.log('✓ jig smoke passed — infer types + seams + wide repeats, live preview, JSON + XLSForm export round-trip, seam toggle + rename through the engine');
   await shutdown();
 } catch (e) {
   console.error('✗ jig smoke FAILED:', e.message);

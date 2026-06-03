@@ -40,8 +40,10 @@ DOM-free and import-clean, like `records/` `rules/` `xlsform/`; lifts into
 ### 3.1 `infer.js` — `inferTree(rows, opts) → { tree, warnings, seams }`
 
 Deterministic **per-column** inference over a table of row objects (a single object is
-a one-row table). The output auto-form is **flat** — containers (`group`/`repeat`) come
-from editing or XLSForm import, never from a flat table.
+a one-row table). The output auto-form is **flat by default**; the one structural
+exception is **wide-format `repeat` detection** (below) — offered as a seam, never forced.
+Nested `group`s and long-format/relational repeats still come from editing or the
+deferred relational pass (§5).
 
 Sniff order (form §10): `number` → `date`/`datetime`/`time` → `geo` (`lat, lng`) →
 `photo`/`file` (extension or header hint) → `select` (a small repeated value set) →
@@ -64,6 +66,15 @@ control per *type* (it does not hand-code per field):
 - `number-or-text` — an all-numeric column that is really a code (leading zero, or an
   id/code/zip/phone header → recommends `text`; e.g. `QF-118`, `02139`).
 - `geo-merge` — a lat-ish + lng-ish numeric pair → offer to fuse into one `geo`.
+- `repeat` — **wide-format** indexed column groups → offer to fold into a `repeat`.
+  Two header shapes, detected structurally (header-only, deterministic): *embedded*
+  `stem<i>_sub` (e.g. `sample1_lith, sample1_fe, sample2_lith…` → repeat `sample` with
+  children `lith, fe`) and *trailing* `base<i>` (e.g. `lith_1, fe_1, lith_2…`, grouped by
+  index-set). Indices must be ≥2 and contiguous from 0/1 (cuts coincidental numbers).
+  Child types are sniffed over the **union** of all instances; the seam carries a ready
+  `spec`, and `applyOverrides({ repeats: [spec] })` → `groupIntoRepeat` folds it (records
+  are *not* reshaped — jig builds the form, not data). The fold resolves in place like
+  `geo-merge`. Long-format (repeated parent-key rows) stays deferred (§5).
 
 The *seam interview is UI*; the engine only surfaces the questions. Answers are applied
 as **sparse overrides** (§3.4), so re-importing a changed table preserves prior answers
@@ -82,12 +93,12 @@ re-implementation — so a tree that validates is one the engine can actually ev
 ### 3.4 `edit.js` — pure `tree → tree`
 
 `addField` · `removeField` · `moveField` · `setProps` · `setLabel` · `setRule` /
-`removeRule` · `renameField` · `applyOverrides` · `findField`. All immutable
+`removeRule` · `renameField` · `groupIntoRepeat` · `applyOverrides` · `findField`. All immutable
 (`structuredClone`); the input is never mutated. `renameField` cascades the change
 through rule targets, `${refs}`, bare refs, and the leading segment of an aggregate
 path — while leaving string literals untouched (a single tokenizing pass mirroring the
 real lexer). `applyOverrides` replays the sparse seam answers (`setType`, `labels`,
-`props`, `required`, `identity`, `geoMerge`).
+`props`, `required`, `identity`, `geoMerge`, `repeats`).
 
 This is why jig does not cruft: there is **no separate builder state**. The UI holds one
 value — the draft tree — and every action is `draft = <pure edit>(draft, …); rerender()`.
@@ -111,9 +122,10 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
 
 ## 5. Scope
 
-**In (v1, built):** deterministic per-column inference + the seam interview; an editable
-flat auto-form; live preview; export to JSON, XLSForm, and capsule share; the standalone
-surface and the embedded Build tab.
+**In (v1, built):** deterministic per-column inference + the seam interview; **wide-format
+`repeat` detection** (embedded + trailing indexed column groups → a foldable repeat, §3.2);
+an editable auto-form; live preview; export to JSON, XLSForm, and capsule share; the
+standalone surface and the embedded Build tab.
 
 **Deferred (named, not hidden):**
 - **`@gcu/yaml` export** — needs a `data→AST` builder for strict no-implicit-typing YAML;
@@ -121,13 +133,18 @@ surface and the embedded Build tab.
   was not shipped. (`treeToYaml` is the follow-on.)
 - A full inline **choices editor** (v1 shows inferred choices, select↔text reversible).
 - **Rule-editing UI** (relevant / constrain / calculate) — inference emits no rules.
-- UI **container creation** (group/repeat) — inference is flat by spec.
+- UI **container creation by hand** (nest a `group`, build a `repeat` manually) — wide
+  repeats are *inferred* (§3.2), but there's no manual container-building UI yet; and a
+  folded repeat is reversible only by re-import (like `geo-merge`).
 - **Draft persistence**; an optional **LLM-accelerated** inference lane (form §10 — the
   deterministic path is the contract; a model only speeds it, never required).
 - xlsx **date-cell** reading (serials); CSV is exact.
-- **Relational / multi-table inference** *(deferred-but-wanted; cross-project)* — today
-  inference is single-table and flat. A richer pass would take *several* tables and infer
-  the relations between them: a column whose values match another table's identity → a
+- **Long-format & relational / multi-table inference** *(deferred-but-wanted; cross-project)*
+  — wide-format repeats are done (§3.2), but two harder shapes remain. *Long-format*
+  (single table, repeated parent-key rows — each row a child instance) needs a per-dataset
+  grouping pass and raises a records-reshaping question jig sidesteps today (it builds the
+  form, not data). *Relational* would take *several* tables and infer the relations between
+  them: a column whose values match another table's identity → a
   `ref` (the `ref` seam form §10 names — AppSheet already does this same-name detection,
   §7); repeating groups → `repeat`s; a star/normalized layout → nested containers. This is
   genuinely a **shared capability**, not jig-specific — a `@gcu/schema-infer` that other
@@ -137,10 +154,12 @@ surface and the embedded Build tab.
 
 ## 6. Tests
 
-`test/jig-infer.test.mjs` (the §10 inference vectors) + `test/jig-edit.test.mjs` (edits,
-validate, and a **confidence round-trip**: an inferred tree validates *and* survives
-`treeToXlsform → xlsformToTree` still contract-valid). Browser: `tools/smoke-jig.mjs`
-drives `jig.html` (infer → preview → JSON + `.xlsx` exports parsed back), and the
+`test/jig-infer.test.mjs` (the §10 inference vectors, incl. wide-repeat detection — embed,
+trailing-multi, trailing-single, and a no-false-positive guard) + `test/jig-edit.test.mjs`
+(edits, validate, `groupIntoRepeat`, and a **confidence round-trip**: an inferred tree —
+including a folded `repeat` — validates *and* survives `treeToXlsform → xlsformToTree`
+still contract-valid). Browser: `tools/smoke-jig.mjs` drives `jig.html` (infer → preview →
+JSON + `.xlsx` exports parsed back → fold a wide repeat and see it in the preview), and the
 collector smoke exercises the **Build** tab (paste → infer → Use this form → fillable).
 
 ## 7. Prior art & positioning

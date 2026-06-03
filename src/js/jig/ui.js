@@ -192,7 +192,7 @@ export function mountJig(root, opts = {}) {
 
   function seamRelevant(s) {
     if (s.type === 'identity' || s.type === 'required') return false;          // identity handled below; required = row checkboxes
-    if (s.type === 'geo-merge') return true;                                   // stays visible — resolves in place, never vanishes
+    if (s.type === 'geo-merge' || s.type === 'repeat') return true;            // stay visible — resolve in place, never vanish
     return !!(s.field && findField(draft, s.field));
   }
 
@@ -230,6 +230,17 @@ export function mountJig(root, opts = {}) {
           draft = applyOverrides(draft, { geoMerge: { lat: s.field[0], lng: s.field[1], into: 'location', label: 'Location' } });
           rerender();
         });
+        row.append(b);
+      }
+    } else if (s.type === 'repeat') {
+      const folded = !!findField(draft, s.spec.name);
+      if (folded) {
+        row.classList.add('jig-seam-done');
+        row.append(jel('div', 'jig-seg-done', `✓ Grouped into repeat "${s.spec.name}" (${s.members.join(', ')})`));
+        q.append(doneMark());
+      } else {
+        const b = jel('button', 'co-btn', 'Make a repeat group');
+        b.addEventListener('click', () => { answered.add(seamKey(s)); draft = applyOverrides(draft, { repeats: [s.spec] }); rerender(); });
         row.append(b);
       }
     }
@@ -291,6 +302,8 @@ export function mountJig(root, opts = {}) {
     if (f.fieldType === 'select' || f.fieldType === 'multiselect') {
       const list = (draft.choices && draft.choices[f.props && f.props.list]) || [];
       row.append(jel('div', 'jig-choices', list.length ? 'choices: ' + list.map((o) => o.label).join(', ') : 'no choices'));
+    } else if (f.fieldType === 'repeat') {
+      row.append(jel('div', 'jig-choices', 'repeats: ' + (f.children || []).map((c) => c.name).join(', ')));
     }
     return row;
   }

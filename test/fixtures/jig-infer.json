@@ -2,7 +2,7 @@
   "description": "Schema-from-example conformance vectors (SPEC-hopper-form §10). Each case feeds rows to inferTree and asserts the inferred field types, any select choices, and which seams are surfaced. The auto-form is always flat.",
   "cases": [
     {
-      "name": "qf-like table: text id, select, number, date, geo",
+      "name": "qf-like table: text id, select, number, date, geo (no false repeat)",
       "rows": [
         { "Site ID": "QF-118", "Lithology": "itabirite", "Fe pct": "58.2", "Sampled": "2026-06-01", "Coords": "-20.1, -43.5" },
         { "Site ID": "QF-119", "Lithology": "quartzite", "Fe pct": "41.0", "Sampled": "2026-06-02", "Coords": "-20.2, -43.6" },
@@ -18,6 +18,7 @@
       ],
       "expectChoices": { "lithology": ["itabirite", "quartzite"] },
       "expectSeams": ["select-or-text", "identity", "required"],
+      "expectNoSeams": ["repeat"],
       "expectIdentity": "site_id"
     },
     {
@@ -84,6 +85,57 @@
         { "name": "note_2", "fieldType": "text" }
       ],
       "expectWarningMatch": "duplicate"
+    },
+    {
+      "name": "wide repeat — embedded stem (sampleN_sub); child type sniffed over the union",
+      "rows": [
+        { "site_id": "A", "sample1_lith": "itabirite", "sample1_fe": "58", "sample2_lith": "quartzite", "sample2_fe": "41" },
+        { "site_id": "B", "sample1_lith": "schist", "sample1_fe": "12", "sample2_lith": "itabirite", "sample2_fe": "60" }
+      ],
+      "expectFields": [
+        { "name": "site_id", "fieldType": "text" },
+        { "name": "sample1_lith", "fieldType": "text" },
+        { "name": "sample1_fe", "fieldType": "number" },
+        { "name": "sample2_lith", "fieldType": "text" },
+        { "name": "sample2_fe", "fieldType": "number" }
+      ],
+      "expectSeams": ["repeat"],
+      "expectRepeat": {
+        "name": "sample",
+        "members": ["lith", "fe"],
+        "childTypes": { "lith": "select", "fe": "number" }
+      }
+    },
+    {
+      "name": "wide repeat — trailing index, multiple bases share an index set (lith_1, fe_1, …)",
+      "rows": [
+        { "plot": "P1", "lith_1": "itab", "fe_1": "58", "lith_2": "qz", "fe_2": "41" },
+        { "plot": "P2", "lith_1": "sch", "fe_1": "12", "lith_2": "itab", "fe_2": "60" }
+      ],
+      "expectFields": [
+        { "name": "plot", "fieldType": "text" },
+        { "name": "lith_1", "fieldType": "text" },
+        { "name": "fe_1", "fieldType": "number" },
+        { "name": "lith_2", "fieldType": "text" },
+        { "name": "fe_2", "fieldType": "number" }
+      ],
+      "expectSeams": ["repeat"],
+      "expectRepeat": { "name": "item", "members": ["lith", "fe"] }
+    },
+    {
+      "name": "wide repeat — trailing index, single base (phone_1..3 → a list)",
+      "rows": [
+        { "name": "Ana", "phone_1": "555-0111", "phone_2": "555-0112", "phone_3": "555-0113" },
+        { "name": "Bru", "phone_1": "555-0222", "phone_2": "", "phone_3": "" }
+      ],
+      "expectFields": [
+        { "name": "name", "fieldType": "text" },
+        { "name": "phone_1", "fieldType": "text" },
+        { "name": "phone_2", "fieldType": "text" },
+        { "name": "phone_3", "fieldType": "text" }
+      ],
+      "expectSeams": ["repeat"],
+      "expectRepeat": { "name": "phone", "members": ["phone"] }
     }
   ]
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inferTree } from '../src/js/jig/infer.js';
 import {
   addField, removeField, moveField, setProps, setLabel,
-  setRule, removeRule, renameField, applyOverrides, findField,
+  setRule, removeRule, renameField, applyOverrides, findField, groupIntoRepeat,
 } from '../src/js/jig/edit.js';
 import { validateTree } from '../src/js/jig/validate.js';
 import { treeToXlsform, xlsformToTree } from '../src/js/xlsform/index.js';
@@ -126,6 +126,39 @@ test('applyOverrides — required, identity, geoMerge', () => {
   assert.equal(findField(t, 'lon'), null, 'lng column removed');
   const geo = findField(t, 'coords');
   assert.ok(geo && geo.field.fieldType === 'geo', 'lat column became the geo point');
+});
+
+test('groupIntoRepeat / applyOverrides repeats — fold wide columns into a repeat', () => {
+  const rows = [
+    { site_id: 'A', sample1_lith: 'itabirite', sample1_fe: '58', sample2_lith: 'quartzite', sample2_fe: '41' },
+    { site_id: 'B', sample1_lith: 'schist', sample1_fe: '12', sample2_lith: 'itabirite', sample2_fe: '60' },
+  ];
+  const { tree, seams } = inferTree(rows);
+  const rseam = seams.find((s) => s.type === 'repeat');
+  assert.ok(rseam, 'repeat seam emitted');
+
+  const t = applyOverrides(tree, { repeats: [rseam.spec] });
+  assert.equal(findField(t, 'sample1_lith'), null, 'flat instance column folded away');
+  const rep = findField(t, 'sample');
+  assert.ok(rep && rep.field.fieldType === 'repeat', 'repeat container present');
+  assert.deepEqual(rep.field.children.map((c) => c.name), ['lith', 'fe'], 'children = the sub-fields');
+  const lith = rep.field.children.find((c) => c.name === 'lith');
+  assert.equal(lith.fieldType, 'select', 'child type sniffed over the union of instances');
+  assert.ok(t.choices[lith.props.list].length >= 2, 'child choices carried into the fold');
+
+  // still contract-valid, and round-trips through XLSForm as begin_repeat/end_repeat
+  assert.equal(validateTree(t).ok, true, JSON.stringify(validateTree(t).errors));
+  const xls = treeToXlsform(t);
+  assert.ok(xls.survey.some((r) => r.type === 'begin_repeat' && r.name === 'sample'), 'begin_repeat emitted');
+  const back = xlsformToTree({ survey: xls.survey, choices: xls.choices, settings: xls.settings });
+  assert.equal(validateTree(back.tree).ok, true, 'round-tripped repeat tree is valid');
+  assert.equal(findField(back.tree, 'sample').field.fieldType, 'repeat', 'repeat survives the round-trip');
+
+  // idempotent: re-applying with the sources already gone is a no-op
+  const t2 = applyOverrides(t, { repeats: [rseam.spec] });
+  assert.equal(findField(t2, 'sample').field.children.length, 2);
+  // direct call matches the override path
+  assert.deepEqual(groupIntoRepeat(tree, rseam.spec).fields.map((f) => f.name), t.fields.map((f) => f.name));
 });
 
 // ---- validateTree -----------------------------------------------------------

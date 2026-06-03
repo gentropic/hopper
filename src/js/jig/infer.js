@@ -102,6 +102,112 @@ function sniffColumn(header, name, vals, selectMax) {
   return { fieldType: 'text', props: {}, seams };
 }
 
+// ---- wide-format repeat detection -------------------------------------------
+//
+// A single denormalized table can encode a repeat as indexed column groups. Two
+// shapes (header-only, deterministic):
+//   embed: stem<i>_sub        e.g. sample1_lith, sample1_fe, sample2_lith, …
+//   trail: base<i>            e.g. lith_1, fe_1, lith_2, fe_2  (grouped by index-set)
+// → a `repeat` whose children are the sub-fields/bases. This is a *candidate* the
+// builder offers as a seam (form §10 is flat by default); the records are NOT
+// reshaped (jig builds the form, not records). Long-format (repeated parent-key
+// rows) is deferred to the relational pass — SPEC-hopper-jig §5.
+
+function parseIndexedHeader(h) {
+  const s = String(h).trim();
+  let m;
+  if ((m = s.match(/^([A-Za-z][\w]*?)[ _.\-]?(\d{1,3})[ _.\-]([A-Za-z][\w]*)$/)))
+    return { kind: 'embed', stem: m[1].toLowerCase(), idx: +m[2], sub: m[3].toLowerCase() };
+  if ((m = s.match(/^([A-Za-z][\w]*?)[ _.\-]?(\d{1,3})$/)))
+    return { kind: 'trail', base: m[1].toLowerCase(), idx: +m[2] };
+  return null;
+}
+
+// indices must be ≥2 and contiguous from 0 or 1 — keeps coincidental numbers
+// (covid19, q5) from masquerading as repeats. The seam still asks, so a stray
+// false positive is declinable, but this cuts the noise.
+function contiguousIndexSet(idxSet) {
+  const a = [...idxSet].sort((x, y) => x - y);
+  if (a.length < 2 || a[0] > 1) return false;
+  for (let i = 1; i < a.length; i++) if (a[i] !== a[i - 1] + 1) return false;
+  return true;
+}
+
+function commonPrefixToken(words) {
+  if (!words.length) return '';
+  let p = words[0];
+  for (const w of words) { while (p && !w.startsWith(p)) p = p.slice(0, -1); }
+  return p.replace(/[_.\- ]+$/, '');
+}
+
+// Detect repeat groups over the inferred columns. Returns ready-to-fold specs:
+// { name, label, children:[fieldDef], childChoices:{list:opts}, sources:[flatName], indices:[n] }.
+function detectRepeatGroups(colMeta, selectMax) {
+  const colByHeader = new Map(colMeta.map((c) => [c.header, c]));
+  const nameByHeader = new Map(colMeta.map((c) => [c.header, c.name]));
+  const groups = [], usedHeaders = new Set();
+
+  const embed = new Map();   // stem -> { idx:Set, items:[{idx,sub,header}] }
+  const trail = new Map();   // base -> { idx:Set, headers:[header] }
+  for (const c of colMeta) {
+    const p = parseIndexedHeader(c.header);
+    if (!p) continue;
+    if (p.kind === 'embed') {
+      const g = embed.get(p.stem) || { idx: new Set(), items: [] };
+      g.idx.add(p.idx); g.items.push({ idx: p.idx, sub: p.sub, header: c.header });
+      embed.set(p.stem, g);
+    } else {
+      const g = trail.get(p.base) || { idx: new Set(), headers: [] };
+      g.idx.add(p.idx); g.headers.push(c.header);
+      trail.set(p.base, g);
+    }
+  }
+
+  const buildChild = (childName, headers) => {
+    const vals = [].concat(...headers.map((h) => (colByHeader.get(h) || {}).vals || []));
+    const s = sniffColumn(childName, childName, vals, selectMax);
+    const field = { name: childName, fieldType: s.fieldType, label: titleizeHeader(childName), props: s.props || {} };
+    let choices = null;
+    if (s.choices) { field.props.list = childName; choices = s.choices; }
+    return { field, choices };
+  };
+
+  // embed: one repeat per stem
+  for (const [stem, g] of embed) {
+    if (!contiguousIndexSet(g.idx)) continue;
+    const subs = [...new Set(g.items.map((it) => it.sub))];
+    const children = [], childChoices = {};
+    for (const sub of subs) {
+      const { field, choices } = buildChild(slugifyHeader(sub), g.items.filter((it) => it.sub === sub).map((it) => it.header));
+      children.push(field); if (choices) childChoices[field.name] = choices;
+    }
+    for (const it of g.items) usedHeaders.add(it.header);
+    groups.push({ name: slugifyHeader(stem), label: titleizeHeader(stem), children, childChoices,
+      sources: g.items.map((it) => nameByHeader.get(it.header)), indices: [...g.idx].sort((a, b) => a - b) });
+  }
+
+  // trail: partition bases by identical (qualifying) index-set → one repeat each
+  const byIdxSet = new Map();
+  for (const [base, g] of trail) {
+    if (!contiguousIndexSet(g.idx)) continue;
+    if (g.headers.some((h) => usedHeaders.has(h))) continue;          // already claimed by an embed group
+    const k = [...g.idx].sort((a, b) => a - b).join(',');
+    (byIdxSet.get(k) || byIdxSet.set(k, []).get(k)).push({ base, g });
+  }
+  for (const [k, bases] of byIdxSet) {
+    const children = [], childChoices = {}, sources = [];
+    for (const { base, g } of bases) {
+      const { field, choices } = buildChild(slugifyHeader(base), g.headers);
+      children.push(field); if (choices) childChoices[field.name] = choices;
+      for (const h of g.headers) sources.push(nameByHeader.get(h));
+    }
+    const name = bases.length === 1 ? bases[0].base : (commonPrefixToken(bases.map((b) => b.base)) || 'item');
+    groups.push({ name: slugifyHeader(name), label: titleizeHeader(name), children, childChoices, sources,
+      indices: k.split(',').map(Number) });
+  }
+  return groups;
+}
+
 // ---- the inference ----------------------------------------------------------
 
 export function inferTree(rows, opts = {}) {
@@ -158,6 +264,18 @@ export function inferTree(rows, opts = {}) {
   if (lat && lng) {
     seams.push({ type: 'geo-merge', field: [lat.name, lng.name], options: ['merge', 'keep'],
       recommend: 'merge', question: `Merge "${lat.header}" + "${lng.header}" into one geo point?` });
+  }
+
+  // Wide-format repeats: indexed column groups → a candidate `repeat` (offered as a
+  // seam — the fold is the user's call; jig stays flat by default, form §10).
+  for (const g of detectRepeatGroups(colMeta, selectMax)) {
+    let gname = g.name;
+    const nonSource = new Set(fields.map((f) => f.name).filter((n) => !g.sources.includes(n)));
+    if (nonSource.has(gname)) { let i = 2; while (nonSource.has(`${gname}_${i}`)) i++; gname = `${gname}_${i}`; }
+    const members = g.children.map((c) => c.name);
+    seams.push({ type: 'repeat', field: gname, members, sources: g.sources, indices: g.indices, recommend: 'repeat',
+      question: `These columns repeat — group ${members.join(', ')} into a repeat "${gname}" (${g.indices.length} instances)?`,
+      spec: { name: gname, label: g.label, children: g.children, childChoices: g.childChoices, sources: g.sources } });
   }
 
   const meta = {
