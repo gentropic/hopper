@@ -1,0 +1,89 @@
+{
+  "description": "Schema-from-example conformance vectors (SPEC-hopper-form §10). Each case feeds rows to inferTree and asserts the inferred field types, any select choices, and which seams are surfaced. The auto-form is always flat.",
+  "cases": [
+    {
+      "name": "qf-like table: text id, select, number, date, geo",
+      "rows": [
+        { "Site ID": "QF-118", "Lithology": "itabirite", "Fe pct": "58.2", "Sampled": "2026-06-01", "Coords": "-20.1, -43.5" },
+        { "Site ID": "QF-119", "Lithology": "quartzite", "Fe pct": "41.0", "Sampled": "2026-06-02", "Coords": "-20.2, -43.6" },
+        { "Site ID": "QF-120", "Lithology": "itabirite", "Fe pct": "60.1", "Sampled": "2026-06-03", "Coords": "-20.0, -43.4" },
+        { "Site ID": "QF-121", "Lithology": "itabirite", "Fe pct": "55.5", "Sampled": "2026-06-04", "Coords": "-20.3, -43.7" }
+      ],
+      "expectFields": [
+        { "name": "site_id", "fieldType": "text", "label": "Site ID" },
+        { "name": "lithology", "fieldType": "select", "list": "lithology" },
+        { "name": "fe_pct", "fieldType": "number", "label": "Fe Pct" },
+        { "name": "sampled", "fieldType": "date" },
+        { "name": "coords", "fieldType": "geo" }
+      ],
+      "expectChoices": { "lithology": ["itabirite", "quartzite"] },
+      "expectSeams": ["select-or-text", "identity", "required"],
+      "expectIdentity": "site_id"
+    },
+    {
+      "name": "clean integer column is number(int) with no code seam",
+      "rows": [{ "Count": "3" }, { "Count": "7" }, { "Count": "12" }],
+      "expectFields": [{ "name": "count", "fieldType": "number", "int": true }],
+      "expectNoSeams": ["number-or-text"]
+    },
+    {
+      "name": "leading-zero code: numeric values but a code seam recommending text",
+      "rows": [{ "Zip": "02139" }, { "Zip": "10001" }, { "Zip": "94103" }],
+      "expectFields": [{ "name": "zip", "fieldType": "number" }],
+      "expectSeams": ["number-or-text"],
+      "expectSeamRecommend": { "number-or-text": "text" }
+    },
+    {
+      "name": "single row: no select inference (no repetition to learn from)",
+      "rows": [{ "Name": "Ada", "Role": "eng" }],
+      "expectFields": [
+        { "name": "name", "fieldType": "text" },
+        { "name": "role", "fieldType": "text" }
+      ],
+      "expectNoSeams": ["select-or-text"],
+      "expectIdentity": "name"
+    },
+    {
+      "name": "geo split across lat/lon columns offers a merge seam",
+      "rows": [
+        { "lat": "-20.1", "lon": "-43.5" },
+        { "lat": "-20.2", "lon": "-43.6" }
+      ],
+      "expectFields": [
+        { "name": "lat", "fieldType": "number" },
+        { "name": "lon", "fieldType": "number" }
+      ],
+      "expectSeams": ["geo-merge"]
+    },
+    {
+      "name": "photo by header hint + image extension",
+      "rows": [{ "Photo": "site-a.jpg" }, { "Photo": "site-b.jpg" }],
+      "expectFields": [{ "name": "photo", "fieldType": "photo" }]
+    },
+    {
+      "name": "file by extension on a non-hint header",
+      "rows": [{ "Report": "a.pdf" }, { "Report": "b.pdf" }],
+      "expectFields": [{ "name": "report", "fieldType": "file" }]
+    },
+    {
+      "name": "datetime and time columns",
+      "rows": [
+        { "Logged": "2026-06-01T09:30:00", "At": "09:30" },
+        { "Logged": "2026-06-02T14:05:00", "At": "14:05" }
+      ],
+      "expectFields": [
+        { "name": "logged", "fieldType": "datetime" },
+        { "name": "at", "fieldType": "time" }
+      ]
+    },
+    {
+      "name": "duplicate headers slug-dedup deterministically",
+      "rows": [{ "Note": "x", "note": "y" }],
+      "expectFields": [
+        { "name": "note", "fieldType": "text" },
+        { "name": "note_2", "fieldType": "text" }
+      ],
+      "expectWarningMatch": "duplicate"
+    }
+  ]
+}
