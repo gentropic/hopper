@@ -139,10 +139,7 @@ function renderField(form, node, inst, saveBlob) {
   } else if (ft === 'barcode') {
     input = barcodeWidget(getV, setV);
   } else if (ft === 'geotrace' || ft === 'geoshape') {
-    input = el('div', 'hf-stub'); input.textContent = `[${ft} capture — not yet implemented]`;
-    wrap.append(input);
-    effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });
-    return wrap;
+    input = geoPathWidget(getV, setV);       // value: ordered [{lat,lng,acc}] (geoshape = closed)
   } else {                                   // text, hidden, rank, and unknown → text input
     input = document.createElement('input'); input.type = 'text';
     input.value = getV() ?? '';
@@ -154,6 +151,39 @@ function renderField(form, node, inst, saveBlob) {
   effect(() => { wrap.hidden = !form.isRelevant(node.name, inst); });
   effect(() => { const { valid, message } = form.validity(node.name, inst); err.textContent = valid ? '' : message; wrap.classList.toggle('hf-invalid', !valid); });
   return wrap;
+}
+
+// Geo path capture (geotrace = open polyline, geoshape = closed polygon). The value
+// is an **ordered array** of `{lat,lng,acc}` points — same point shape as `geo`,
+// lives in `values` (not an attachment). v1 is the data-clean back end: capture the
+// current GPS point, append, list, remove, reorder-by-remove. The map/sketch surface
+// is deliberately later UI work; the value contract is what matters now.
+function geoPathWidget(getV, setV) {
+  const box = el('div', 'hf-geopath');
+  const list = el('div', 'hf-geopath-list');
+  const msg = el('span', 'hf-geo-val');
+  const points = () => getV() || [];
+  effect(() => {                              // re-render the list whenever the value changes
+    list.replaceChildren(...points().map((p, i) => {
+      const row = el('div', 'hf-geopt');
+      row.append(el('span', 'hf-geopt-i', String(i + 1)));
+      row.append(el('span', 'hf-geopt-val', `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}${p.acc != null ? ` ±${Math.round(p.acc)} m` : ''}`));
+      const rm = el('button', 'hf-geopt-rm'); rm.type = 'button'; rm.textContent = '×';
+      rm.addEventListener('click', () => { const a = points().slice(); a.splice(i, 1); setV(a.length ? a : null); });
+      row.append(rm); return row;
+    }));
+  });
+  const add = el('button', 'hf-capture'); add.type = 'button'; add.textContent = '📍 Add point';
+  add.addEventListener('click', () => {
+    if (!navigator.geolocation) { msg.textContent = 'no geolocation'; return; }
+    add.disabled = true; const prev = add.textContent; add.textContent = 'locating…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setV([...points(), { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }]); add.disabled = false; add.textContent = prev; msg.textContent = ''; },
+      (e) => { msg.textContent = 'failed: ' + e.message; add.disabled = false; add.textContent = prev; },
+      { enableHighAccuracy: true, timeout: 10000 });
+  });
+  box.append(list, add, msg);
+  return box;
 }
 
 // Media capture (photo/audio/video/file) → a content-addressed attachment blob.

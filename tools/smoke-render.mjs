@@ -20,6 +20,8 @@ const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0l
 const srv = await startServer({ root: process.cwd(), port: 0 });
 const browser = await chromium.launch();
 const page = await browser.newPage();
+await page.context().grantPermissions(['geolocation']);            // for the geotrace capture
+await page.context().setGeolocation({ latitude: -20.12, longitude: -43.45, accuracy: 6 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 
@@ -67,6 +69,13 @@ try {
     () => [...document.querySelectorAll('.hf-instance .hf-error')].some((e) => e.textContent.includes('100')),
     undefined, { timeout: 2000 });
   await page.locator('.hf-instance input[type="number"]').first().fill('64');   // fix it before saving
+
+  // geotrace: capture two GPS points (mocked location) → an ordered point list
+  const traverse = page.locator('.hf-field').filter({ hasText: 'Traverse' });
+  await traverse.locator('.hf-capture').click();
+  await traverse.locator('.hf-geopt').first().waitFor({ timeout: 3000 });
+  await traverse.locator('.hf-capture').click();
+  await page.waitForFunction(() => document.querySelectorAll('.hf-geopath-list .hf-geopt').length === 2, undefined, { timeout: 3000 });
 
   // media capture: file/camera input → bytes → store.saveBlob (real IDB binary
   // write, content-addressed) → attachment ref; widget shows the stored hash+size

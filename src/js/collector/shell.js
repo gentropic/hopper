@@ -180,6 +180,7 @@ const SEED_FORM = {
   fields: [
     { name: 'site_id', fieldType: 'text', label: 'Site ID', props: { required: true } },
     { name: 'coords', fieldType: 'geo', label: 'Coordinates', props: {} },
+    { name: 'traverse', fieldType: 'geotrace', label: 'Traverse', props: {} },
     { name: 'outcrop_photo', fieldType: 'photo', label: 'Outcrop photo', props: {} },
     { name: 'resample', fieldType: 'select', label: 'Resample needed?', props: { list: 'yesno' } },
     { name: 'why', fieldType: 'text', label: 'Why resample?', props: {} },

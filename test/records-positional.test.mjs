@@ -9,6 +9,7 @@ const TREE = {
   fields: [
     { name: 'site_id', fieldType: 'text', label: 'Site', props: {} },
     { name: 'coords', fieldType: 'geo', label: 'Coords', props: {} },
+    { name: 'traverse', fieldType: 'geotrace', label: 'Traverse', props: {} },
     { name: 'resample', fieldType: 'select', label: 'Resample?', props: { list: 'yesno' } },
     { name: 'hazards', fieldType: 'multiselect', label: 'Hazards', props: { list: 'haz' } },
     { name: 'meta', fieldType: 'group', label: 'Meta', props: {}, children: [
@@ -33,6 +34,7 @@ test('positional: full round-trip against the schema', () => {
   const values = {
     site_id: 'QF-118',
     coords: { lat: -20.123, lng: -43.456, acc: 5 },
+    traverse: [{ lat: -20.1, lng: -43.4, acc: 5 }, { lat: -20.2, lng: -43.5, acc: 8 }],
     resample: 'yes',
     hazards: ['rockfall', 'gas'],
     crew: 3,

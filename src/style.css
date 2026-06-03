@@ -51,6 +51,12 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .hf-geo { display: flex; align-items: center; gap: .6rem; }
 .hf-capture { font: inherit; font-size: .85rem; padding: .35rem .7rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-action); cursor: pointer; }
 .hf-geo-val { font-family: var(--au-mono); font-size: .78rem; color: var(--au-muted); }
+.hf-geopath { display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; }
+.hf-geopath-list { display: flex; flex-direction: column; gap: .2rem; width: 100%; }
+.hf-geopt { display: flex; align-items: center; gap: .5rem; font-family: var(--au-mono); font-size: .76rem; }
+.hf-geopt-i { color: var(--au-muted); min-width: 1.2rem; }
+.hf-geopt-val { color: var(--au-text); }
+.hf-geopt-rm { margin-left: auto; border: none; background: none; color: var(--au-muted); font-size: 1rem; cursor: pointer; }
 .hf-media { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 .hf-media-val { font-family: var(--au-mono); font-size: .78rem; color: #3E7D54; }   /* go */
 .hf-barcode { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }

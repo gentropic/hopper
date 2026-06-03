@@ -82,6 +82,19 @@ test('values() snapshot: nested repeat array, irrelevant field omitted', () => {
   assert.equal('photo' in v, false);                    // media lives in attachments, not values (§8)
 });
 
+test('geotrace/geoshape: ordered point array in values; required = non-empty', () => {
+  const t = {
+    type: 'form', meta: { id: 'g' },
+    fields: [{ name: 'path', fieldType: 'geotrace', label: 'Path', props: { required: true } }],
+    choices: {}, rules: [], views: [],
+  };
+  const f = createForm(t);
+  assert.equal(f.validity('path').valid, false, 'required + empty → invalid');
+  f.set('path', [{ lat: -20.1, lng: -43.4, acc: 5 }, { lat: -20.2, lng: -43.5, acc: 8 }]);
+  assert.equal(f.validity('path').valid, true, 'two points → valid');
+  assert.deepEqual(f.values().path, [{ lat: -20.1, lng: -43.4, acc: 5 }, { lat: -20.2, lng: -43.5, acc: 8 }], 'ordered array in values()');
+});
+
 test('attachments(): media ref collected, keyed by field; excluded from values', () => {
   const f = createForm(TREE);
   assert.deepEqual(f.attachments(), {});                // nothing captured yet
