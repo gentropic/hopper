@@ -105,7 +105,7 @@ Each field is an entry in the tree's `fields` array — `{name, fieldType, label
 
 Nested `group`s add no data-model cost (names stay form-unique, values stay flat). A `repeat`'s children form per-instance sub-records; rules inside it evaluate per-instance, and `count`/`total`/`max`/`min` aggregate over its instances (SPEC-hopper-rules; DECISIONS §12).
 
-Common props (in `props`): `required` (bool, or a message string), `default`, `hint`, `appearance`, `readonly`, and `label::<lang>` for translations. Type-specific params ride in `props` too (e.g. `"capture-accuracy": 10` on `geo`; `int: true` on `number` for integer-only).
+Common props (in `props`): `required` (bool, or a message string), `default`, `hint`, `appearance`, `readonly`, and `label::<lang>` for translations. Type-specific params ride in `props` too (e.g. `"capture-accuracy": 10` on `geo`; `int: true` on `number` for integer-only). The `geo`/`geotrace`/`geoshape` value contract is an ordered set of `{lat,lng,acc}` points; the *capture quality* layer on top of it — live-converging fixes, accuracy surfacing + the `capture-accuracy` threshold, occupy-and-average, honest metadata + datum — is **SPEC-hopper-geo** (design / roadmap; the shipped widget is its snapshot floor).
 
 Metadata auto-fields are declared like any field with reserved types: `now`, `deviceid`, `username`, `start`, `end` (captured by the engine, no UI).
 

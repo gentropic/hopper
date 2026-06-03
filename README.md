@@ -40,6 +40,7 @@ design contract; the code in `src/` is the implementation.
   the full sync carrier model.
 - **SPEC-hopper-records** — the signed record object model and the conflict-free union.
 - **SPEC-hopper-paper** — printable, machine-readable forms that scan back to records, offline (design / roadmap).
+- **SPEC-hopper-geo** — location capture done with care: live-converging fixes, accuracy honesty, averaging (design / roadmap).
 - **DECISIONS.md** — design resolutions that amend the specs where they differ.
 
 ## Build order

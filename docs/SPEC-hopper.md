@@ -118,6 +118,7 @@ The doc set:
 - **SPEC-hopper-rules** — the rule-expression language: a total expression calculus (closes the §7 runtime question).
 - **SPEC-hopper-records** — the signed object model: record envelope, per-stream append-only logs, content-addressing, the conflict-free union.
 - **SPEC-hopper-paper** — paper capture: printable, machine-readable forms that round-trip to records, offline, with a phone camera (design / roadmap).
+- **SPEC-hopper-geo** — geo capture done with care: live-converging fixes, accuracy surfaced + thresholded, occupy-and-average, honest metadata + datum (design / roadmap).
 - **DECISIONS** — follow-up design resolutions amending this set (durability, git-shaped sync, private-by-default, surfaces-not-apps).
 - **Reference implementations** — `hopper-renderer` (tree → live form + reactive rules), `@gcu/hopper-xlsform` (tested XLSForm↔tree converter).
 - **UX references** — `hopper.html` (collector shell), `works-dataapp-mock` (builder feel).
