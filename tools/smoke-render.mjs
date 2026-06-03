@@ -113,6 +113,18 @@ try {
   await page.locator('.co-name-input').blur();
   await page.waitForFunction(() => document.querySelector('.co-name-input')?.value === 'Smoke Surveyor', undefined, { timeout: 2000 });
 
+  // Build tab (jig embedded): paste a CSV → infer a form → "Use this form" routes
+  // it into the store via onEmit and jumps straight to Fill (build → collect)
+  await nav('Build').click();
+  await page.waitForSelector('.co-build .jig-wrap', { timeout: 3000 });
+  await page.locator('.co-build .jig-title').fill('Built In Collector');
+  await page.locator('.co-build .jig-paste').fill('Station,Depth\nA1,12\nA2,8');
+  await page.locator('.co-build').getByRole('button', { name: 'Infer form' }).click();
+  await page.locator('.co-build .jig-field').first().waitFor({ timeout: 3000 });
+  await page.locator('.co-build').getByRole('button', { name: 'Use this form' }).click();
+  await page.waitForFunction(() => document.querySelector('.co-filltitle')?.textContent === 'Built In Collector', undefined, { timeout: 3000 });
+  assert.ok((await page.getByText('Station').count()) >= 1, 'jig-built form is fillable in the collector');
+
   // add a form from a file (@gcu/yaml) → jumps into Fill with the new title
   await nav('Forms').click();
   await page.locator('.co-addrow').click();
@@ -249,7 +261,7 @@ try {
   await page.context().setOffline(false);
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, add yaml/xlsx, capsule in/out, archive import, correct/retract, WebRTC sync, offline shell');
+  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, Build-tab (jig), add yaml/xlsx, capsule in/out, archive import, correct/retract, WebRTC sync, offline shell');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

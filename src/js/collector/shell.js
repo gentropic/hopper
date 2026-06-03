@@ -9,6 +9,7 @@
 import { createForm } from '../renderer/state.js';
 import { renderForm } from '../renderer/render.js';
 import { startBarcodeScan } from '../renderer/scan.js';
+import { mountJig } from '../jig/ui.js';
 import { loadFormByName } from '../formsource/load.js';
 import { loadXlsx } from '../formsource/xlsx.js';
 import { resolveFormCapsule } from '../formsource/capsule.js';
@@ -231,9 +232,10 @@ export async function mountShell(store, root, opts = {}) {
   const nav = ce('nav', 'co-nav');
   const navBtn = (key, label) => { const b = ce('button', null, label); b.dataset.nav = key; b.addEventListener('click', () => go(key)); return b; };
   const navForms = navBtn('forms', 'Forms');
+  const navBuild = navBtn('build', 'Build');
   const navOutbox = navBtn('outbox', 'Outbox');
   const navSettings = navBtn('settings', 'Settings');
-  nav.append(navForms, navOutbox, navSettings);
+  nav.append(navForms, navBuild, navOutbox, navSettings);
   app.append(top, warn, screenEl, nav);
   root.append(app);
 
@@ -254,7 +256,7 @@ export async function mountShell(store, root, opts = {}) {
   // ---- navigation + chrome ----
   async function go(s) { screen = s; await render(); }
   function setNavActive() {
-    for (const b of [navForms, navOutbox, navSettings]) b.classList.toggle('on', b.dataset.nav === (screen === 'fill' ? 'forms' : screen));
+    for (const b of [navForms, navBuild, navOutbox, navSettings]) b.classList.toggle('on', b.dataset.nav === (screen === 'fill' ? 'forms' : screen));
   }
   async function refreshChrome() {
     const s = await store.status();
@@ -270,6 +272,7 @@ export async function mountShell(store, root, opts = {}) {
     setNavActive();
     let view;
     if (screen === 'fill') view = viewFill();
+    else if (screen === 'build') view = viewBuild();
     else if (screen === 'outbox') view = await viewOutbox();
     else if (screen === 'settings') view = await viewSettings();
     else view = await viewForms();
@@ -299,6 +302,27 @@ export async function mountShell(store, root, opts = {}) {
     dis.addEventListener('click', () => { localStorage.setItem(ONBOARD_KEY, '1'); render(); });
     acts.append(per, dis); card.append(acts);
     return card;
+  }
+
+  // ---- Build (jig) ----
+  // The schema-from-example builder, embedded as a tab. jig is host-agnostic
+  // (mountJig(onEmit)); here onEmit routes the built tree into the record store
+  // and jumps straight to Fill — build → collect with no file handoff. The same
+  // surface also ships standalone as jig.html (surfaces-not-apps, DECISIONS §7).
+  function viewBuild() {
+    const v = ce('section', 'co-view');
+    const host = ce('div', 'co-build');
+    mountJig(host, {
+      embedded: true,
+      onEmit: async (tree) => {
+        const hash = await store.putForm(tree);
+        current = { tree, hash }; fillFlash = '';
+        toast('Form added ✓');
+        await go('fill');
+      },
+    });
+    v.append(host);
+    return v;
   }
 
   // ---- Forms ----

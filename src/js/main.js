@@ -33,5 +33,9 @@ import '../../vendor/qrcodegen.js'; // Nayuki QR gen — classic global script, 
 import './sync/session.js';       // → syncSession: transport-agnostic bundle exchange + set-union merge
 import './sync/webrtc.js';        // → webrtcOffer/webrtcAnswer: serverless WebRTC channel (QR handshake)
 import './sync/handshake.js';     // → encodeHandshake/decodeHandshake: SDP ↔ QR (capsule-deflated)
-import './collector/shell.js';   // → mountShell: Forms · Outbox · Settings around the renderer
+import './jig/infer.js';         // → inferTree: a table → a flat §8 tree + seams (the Build tab)
+import './jig/validate.js';      // → validateTree, IDENT_RE: the contract guardrail
+import './jig/edit.js';          // → pure tree→tree edits + applyOverrides
+import './jig/ui.js';            // → mountJig: the schema-from-example builder (embedded as a tab)
+import './collector/shell.js';   // → mountShell: Forms · Build · Outbox · Settings around the renderer
 import './boot.js';              // creates the store, mounts the shell, registers the SW

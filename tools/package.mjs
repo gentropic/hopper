@@ -41,11 +41,17 @@ writeFileSync(resolve(dist, 'sw.js'), sw);
 // 4. manifest + icons (already relative-path → works at "/" and at GH-Pages "/<repo>/")
 for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-maskable.svg']) copyFileSync(r(f), resolve(dist, f));
 
+// 4b. jig — the schema-from-example builder surface (a sibling self-contained page,
+// served at <site>/jig.html). Built via `node build.js --target=jig`; copied if present.
+const hasJig = existsSync(r('jig.html'));
+if (hasJig) copyFileSync(r('jig.html'), resolve(dist, 'jig.html'));
+
 // 5. the BYO-infra deploy guide
 writeFileSync(resolve(dist, 'README.md'), deployReadme(hash));
 
 // 6. a zip of the bundle, for hand-over (the spec's "export a zip")
 const names = ['index.html', 'sw.js', 'manifest.webmanifest', 'icon.svg', 'icon-maskable.svg', 'README.md'];
+if (hasJig) names.splice(1, 0, 'jig.html');
 const files = names.map((name) => ({ name, data: readFileSync(resolve(dist, name)) }));
 writeFileSync(r('hopper-collector.zip'), zip(files));
 
@@ -93,6 +99,7 @@ files — host them anywhere, on infra you control, with no server and no accoun
 
 ## What's here
 - \`index.html\` — the whole app (one self-contained file).
+- \`jig.html\` — the form builder (schema-from-example), a standalone page; also reachable as the collector's **Build** tab.
 - \`manifest.webmanifest\`, \`sw.js\`, \`icon*.svg\` — the PWA shell (installable + offline).
 
 All paths are **relative**, so it works served at \`/\` *and* at a subpath like

@@ -99,7 +99,8 @@ export function mountJig(root, opts = {}) {
   root.replaceChildren();
   const wrap = jel('div', 'jig-wrap');
 
-  // ── header + intake ──
+  // ── header + intake ── (the brand header is suppressed when embedded as a tab,
+  // so the host shell's chrome isn't doubled)
   const head = jel('header', 'jig-head');
   head.append(jel('div', 'jig-brand', 'Hopper · jig'), jel('div', 'jig-sub', 'a form from an example table'));
 
@@ -139,7 +140,8 @@ export function mountJig(root, opts = {}) {
 
   // ── footer: validation + export ──
   const bar = jel('footer', 'jig-bar');
-  wrap.append(head, intake, body, bar);
+  if (!opts.embedded) wrap.append(head);
+  wrap.append(intake, body, bar);
   root.append(wrap);
 
   // ---- state helpers ----

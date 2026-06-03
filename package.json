@@ -28,7 +28,7 @@
   ],
   "scripts": {
     "build": "node build.js",
-    "package": "node build.js && node tools/package.mjs",
+    "package": "node build.js && node build.js --target=jig && node tools/package.mjs",
     "test": "node --test",
     "smoke": "node build.js && node tools/smoke-render.mjs",
     "smoke:jig": "node build.js --target=jig && node tools/smoke-jig.mjs",

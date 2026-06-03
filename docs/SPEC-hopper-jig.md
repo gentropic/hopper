@@ -1,0 +1,135 @@
+# SPEC-hopper-jig — the builder (schema-from-example)
+
+*CC0. Status: **built** (engine + surface shipped). This spec is descriptive — where
+it and the code disagree, trust the code and fix this doc (CLAUDE.md convention). It
+promotes the forward-reference in SPEC-hopper §3 and the design in SPEC-hopper-form §10
+to a component spec.*
+
+## 1. What jig is
+
+**jig** is Hopper's authoring surface: it turns an **example table into a §8 form
+definition**. It is not a separate product — "an internal Hopper surface" (form §10),
+a *surface, not an app* (DECISIONS §7). It emits the one canonical tree the renderer,
+collector, and XLSForm bridge already target; it adds **no new format and no new
+runtime** — only converters *into* the tree and small, pure edits *over* it.
+
+The data-first on-ramp is deliberate: most people have a spreadsheet of what they want
+to collect, not a schema. jig meets them there — paste a CSV / JSON rows, get a working
+form, refine it with a few taps, ship it.
+
+## 2. Two hosts, one surface
+
+jig is built host-agnostic: `mountJig(root, { onEmit, initialTree, embedded })`.
+
+- **Standalone** — `jig.html`, its own `--target=jig` build (a leaner artifact: no
+  record store, no service worker — a stateless authoring page). Output leaves via
+  download / capsule-share, i.e. the same intake the collector already accepts.
+- **Embedded** — the collector's **Build** tab. `onEmit(tree)` routes the built form
+  into `store.putForm` and jumps straight to Fill: build → collect, no file handoff.
+  `embedded: true` drops jig's own brand header so the shell chrome isn't doubled.
+
+Both are the *same* `src/js/jig/` code. The surface-vs-tab choice is a mounting detail,
+not an architecture fork (the point of `onEmit`).
+
+## 3. The engine (`src/js/jig/`) — pure, node-tested, extraction-ready
+
+DOM-free and import-clean, like `records/` `rules/` `xlsform/`; lifts into
+`@gcu/hopper-jig` when stable. Conformance vectors are the executable spec
+(`test/fixtures/jig-infer.json`).
+
+### 3.1 `infer.js` — `inferTree(rows, opts) → { tree, warnings, seams }`
+
+Deterministic **per-column** inference over a table of row objects (a single object is
+a one-row table). The output auto-form is **flat** — containers (`group`/`repeat`) come
+from editing or XLSForm import, never from a flat table.
+
+Sniff order (form §10): `number` → `date`/`datetime`/`time` → `geo` (`lat, lng`) →
+`photo`/`file` (extension or header hint) → `select` (a small repeated value set) →
+`text`. Integers get `props.int`. A column header becomes a slugged `name`
+(`[a-z0-9_-]+`) + a titled `label`; duplicates are deduped deterministically.
+
+Choice inference needs **multiple rows**: a low-cardinality text column (≥2 distinct,
+≤ `selectMax`, with repetition) becomes a `select` with the observed values as
+`choices`. Every lossy or ambiguous guess is recorded in `warnings` — never silent
+(invariant §4.6).
+
+### 3.2 Seams — the interview, as data
+
+The genuinely ambiguous calls are returned as structured `seams`, so the UI renders one
+control per *type* (it does not hand-code per field):
+
+- `identity` — which column is the record's primary label (outbox display / dedup).
+- `required` — which columns must not be blank (recommends the fully-filled ones).
+- `select-or-text` — a repeating column: choice list or free text?
+- `number-or-text` — an all-numeric column that is really a code (leading zero, or an
+  id/code/zip/phone header → recommends `text`; e.g. `QF-118`, `02139`).
+- `geo-merge` — a lat-ish + lng-ish numeric pair → offer to fuse into one `geo`.
+
+The *seam interview is UI*; the engine only surfaces the questions. Answers are applied
+as **sparse overrides** (§3.4), so re-importing a changed table preserves prior answers
+(new columns append; removed columns' answers are no-ops) — form §10.
+
+### 3.3 `validate.js` — `validateTree(tree) → { ok, errors, warnings }`
+
+The guardrail that lets jig emit **only** a contract-valid tree (invariant §4.1 — One
+Contract): identifier charset, unique names (across container children), known field
+types, `select`/`multiselect`/`rank` resolve to a `choices` list, containers have a
+`children` array, rule verbs are valid and target existing fields. Rule **expressions
+are checked against the real `rules/eval.js` parser** (`parse` + `deps`), not a
+re-implementation — so a tree that validates is one the engine can actually evaluate.
+`errors` block emission; `warnings` (orphan lists, unresolved refs) are advisory.
+
+### 3.4 `edit.js` — pure `tree → tree`
+
+`addField` · `removeField` · `moveField` · `setProps` · `setLabel` · `setRule` /
+`removeRule` · `renameField` · `applyOverrides` · `findField`. All immutable
+(`structuredClone`); the input is never mutated. `renameField` cascades the change
+through rule targets, `${refs}`, bare refs, and the leading segment of an aggregate
+path — while leaving string literals untouched (a single tokenizing pass mirroring the
+real lexer). `applyOverrides` replays the sparse seam answers (`setType`, `labels`,
+`props`, `required`, `identity`, `geoMerge`).
+
+This is why jig does not cruft: there is **no separate builder state**. The UI holds one
+value — the draft tree — and every action is `draft = <pure edit>(draft, …); rerender()`.
+
+## 4. The surface (`src/js/jig/ui.js`)
+
+Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish later.
+
+- **Intake** — paste a CSV / JSON, or pick a `.csv`/`.json`/`.xlsx` file (CSV & XLSX via
+  the bundled SheetJS; read with `raw:true` so an ISO date column is not coerced to an
+  Excel serial). A *data-table* xlsx, not an XLSForm definition (that is the collector's
+  import path); date cells stored as serials read as numbers — the type dropdown is the
+  fallback.
+- **Schema** — the seam interview (rendered from `seams`), an editable field list
+  (rename / type / label / required / reorder / delete / add), and an identity picker.
+- **Preview** — `renderForm(createForm(draft))`: the live WYSIWYG is the real renderer,
+  for free.
+- **Export bar** — live `validateTree` status, plus **JSON**, **XLSForm `.xlsx`**
+  (`treeToXlsform` + SheetJS write — the ODK off-ramp), and **Share** (a `q:` capsule QR
+  + link the collector ingests). When hosted with `onEmit`, a **Use this form →** action.
+
+## 5. Scope
+
+**In (v1, built):** deterministic per-column inference + the seam interview; an editable
+flat auto-form; live preview; export to JSON, XLSForm, and capsule share; the standalone
+surface and the embedded Build tab.
+
+**Deferred (named, not hidden):**
+- **`@gcu/yaml` export** — needs a `data→AST` builder for strict no-implicit-typing YAML;
+  JSON already satisfies the §8 serialization contract, so a fragile hand-rolled emitter
+  was not shipped. (`treeToYaml` is the follow-on.)
+- A full inline **choices editor** (v1 shows inferred choices, select↔text reversible).
+- **Rule-editing UI** (relevant / constrain / calculate) — inference emits no rules.
+- UI **container creation** (group/repeat) — inference is flat by spec.
+- **Draft persistence**; an optional **LLM-accelerated** inference lane (form §10 — the
+  deterministic path is the contract; a model only speeds it, never required).
+- xlsx **date-cell** reading (serials); CSV is exact.
+
+## 6. Tests
+
+`test/jig-infer.test.mjs` (the §10 inference vectors) + `test/jig-edit.test.mjs` (edits,
+validate, and a **confidence round-trip**: an inferred tree validates *and* survives
+`treeToXlsform → xlsformToTree` still contract-valid). Browser: `tools/smoke-jig.mjs`
+drives `jig.html` (infer → preview → JSON + `.xlsx` exports parsed back), and the
+collector smoke exercises the **Build** tab (paste → infer → Use this form → fillable).
