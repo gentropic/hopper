@@ -207,6 +207,24 @@ test('store: recordsView resolves corrections (head wins) + tombstones (dropped)
   assert.equal(store.count(), 4, 'counter counts appended objects, not effective');
 });
 
+test('store: setName updates identity + stream registration, persists, sanitises', async () => {
+  const backend = new MemoryBackend();
+  const s = createStore(backend);
+  const id = await s.init({ name: 'collector' });
+  assert.equal(id.name, 'collector');
+
+  const set = await s.setName('  A. Endlein  ');
+  assert.equal(set, 'A. Endlein', 'trimmed');
+  assert.equal(s.identity().name, 'A. Endlein', 'in-memory identity updated');
+  const reg = JSON.parse(await backend.readFile(`/streams/${id.streamId}.json`));
+  assert.equal(reg.name, 'A. Endlein', 'stream registration relabelled (peers see it)');
+  assert.equal(id.streamId, s.identity().streamId, 'stream-id unchanged — rename is just a label');
+
+  const s2 = createStore(backend);                 // reload
+  assert.equal((await s2.init()).name, 'A. Endlein', 'name persisted');
+  assert.equal(await s2.setName('   '), 'collector', 'blank → default');
+});
+
 test('store: identity + counter persist across reload (same backend)', async () => {
   const backend = new MemoryBackend();
   const s1 = createStore(backend);

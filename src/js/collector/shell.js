@@ -626,9 +626,11 @@ export async function mountShell(store, root, opts = {}) {
     const sec = (label) => { const d = ce('div', 'co-sec'); d.append(ce('div', 'co-seclabel', label)); const p = ce('div', 'co-panel'); d.append(p); v.append(d); return p; };
     const srow = (panel, lab, valEl) => { const r = ce('div', 'co-srow'); r.append(ce('div', 'co-lab', lab)); if (valEl) r.append(valEl); panel.append(r); return r; };
 
-    // Collector identity
+    // Collector identity — the name rides into peer sync as your label (§3); editable.
     const coll = sec('Collector');
-    srow(coll, 'Name', ce('span', 'co-val', id.name || '—'));
+    const nameInput = ce('input', 'co-name-input'); nameInput.value = id.name || ''; nameInput.placeholder = 'your name';
+    nameInput.addEventListener('change', async () => { const n = await store.setName(nameInput.value); toast('Name set: ' + n); await render(); });
+    srow(coll, 'Name', nameInput);
     srow(coll, 'Stream', ce('span', 'co-val co-mono', id.streamId.slice(0, 16) + '…'));
     srow(coll, 'Device', ce('span', 'co-val co-mono', id.device));
 

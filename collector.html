@@ -187,6 +187,7 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .co-lab { font-size: .9rem; }
 .co-val { margin-left: auto; font-size: .85rem; color: var(--au-muted); }
 .co-mono { font-family: var(--au-mono); font-size: .78rem; }
+.co-name-input { margin-left: auto; max-width: 55%; font: inherit; font-size: .85rem; padding: .25rem .45rem; border: 1px solid var(--au-border); border-radius: 5px; background: var(--au-bg); color: var(--au-text); }
 .co-seg { margin-left: auto; display: flex; border: 1px solid var(--au-border); border-radius: 6px; overflow: hidden; }
 .co-seg button { font: inherit; font-size: .78rem; padding: .3rem .7rem; border: none; background: var(--au-bg); color: var(--au-muted); cursor: pointer; }
 .co-seg button.on { background: var(--au-action); color: #fff; }
@@ -5979,6 +5980,22 @@ function createStore(backend) {
     return identity;
   }
 
+  // Set the collector's human name (SPEC-hopper-collector §3). It rides into peer
+  // sync as your label, so it's worth setting. Safe to change: the name is a mutable
+  // label on /identity.json + the stream registration — NOT part of the stream-id (a
+  // hash of pubkey+device+epoch) nor any signed record envelope — so renaming
+  // re-labels existing records without touching identity or a single signature.
+  async function setName(name) {
+    if (!identity) throw new Error('store not initialised');
+    const clean = String(name || '').trim() || 'collector';
+    identity.name = clean;
+    await writeJSON('/identity.json', identity);
+    const sp = `/streams/${identity.streamId}.json`;
+    const reg = await readJSON(sp);
+    if (reg) { reg.name = clean; await writeJSON(sp, reg); }
+    return clean;
+  }
+
   // Store a form definition once, content-addressed; returns its hash for records to point at.
   async function putForm(tree) {
     const hash = await contentAddress(encStr(canonicalize(tree)));
@@ -6163,7 +6180,7 @@ function createStore(backend) {
   }
 
   return {
-    init, putForm, saveBlob, getBlob, referencedBlobs, missingBlobs, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
+    init, setName, putForm, saveBlob, getBlob, referencedBlobs, missingBlobs, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
     exportBundle, importBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }
@@ -34860,9 +34877,11 @@ async function mountShell(store, root, opts = {}) {
     const sec = (label) => { const d = ce('div', 'co-sec'); d.append(ce('div', 'co-seclabel', label)); const p = ce('div', 'co-panel'); d.append(p); v.append(d); return p; };
     const srow = (panel, lab, valEl) => { const r = ce('div', 'co-srow'); r.append(ce('div', 'co-lab', lab)); if (valEl) r.append(valEl); panel.append(r); return r; };
 
-    // Collector identity
+    // Collector identity — the name rides into peer sync as your label (§3); editable.
     const coll = sec('Collector');
-    srow(coll, 'Name', ce('span', 'co-val', id.name || '—'));
+    const nameInput = ce('input', 'co-name-input'); nameInput.value = id.name || ''; nameInput.placeholder = 'your name';
+    nameInput.addEventListener('change', async () => { const n = await store.setName(nameInput.value); toast('Name set: ' + n); await render(); });
+    srow(coll, 'Name', nameInput);
     srow(coll, 'Stream', ce('span', 'co-val co-mono', id.streamId.slice(0, 16) + '…'));
     srow(coll, 'Device', ce('span', 'co-val co-mono', id.device));
 

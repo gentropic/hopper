@@ -46,6 +46,22 @@ export function createStore(backend) {
     return identity;
   }
 
+  // Set the collector's human name (SPEC-hopper-collector §3). It rides into peer
+  // sync as your label, so it's worth setting. Safe to change: the name is a mutable
+  // label on /identity.json + the stream registration — NOT part of the stream-id (a
+  // hash of pubkey+device+epoch) nor any signed record envelope — so renaming
+  // re-labels existing records without touching identity or a single signature.
+  async function setName(name) {
+    if (!identity) throw new Error('store not initialised');
+    const clean = String(name || '').trim() || 'collector';
+    identity.name = clean;
+    await writeJSON('/identity.json', identity);
+    const sp = `/streams/${identity.streamId}.json`;
+    const reg = await readJSON(sp);
+    if (reg) { reg.name = clean; await writeJSON(sp, reg); }
+    return clean;
+  }
+
   // Store a form definition once, content-addressed; returns its hash for records to point at.
   async function putForm(tree) {
     const hash = await contentAddress(encStr(canonicalize(tree)));
@@ -230,7 +246,7 @@ export function createStore(backend) {
   }
 
   return {
-    init, putForm, saveBlob, getBlob, referencedBlobs, missingBlobs, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
+    init, setName, putForm, saveBlob, getBlob, referencedBlobs, missingBlobs, saveRecord, listRecords, listForms, recordsView, identity: () => identity, count: () => counter,
     exportBundle, importBundle, markExported, unbackedUp, persistRequest, status, setMirror, exportIdentity,
   };
 }

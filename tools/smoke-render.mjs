@@ -108,6 +108,11 @@ try {
   assert.ok((await page.locator('.hf-badge').count()) >= 1, 'persistence badge renders');
   assert.ok((await page.locator('.co-legend .co-sw').count()) === 6, 'six-accent legend in About');
 
+  // editable collector name → setName rewrites identity/stream reg, survives re-render
+  await page.locator('.co-name-input').fill('Smoke Surveyor');
+  await page.locator('.co-name-input').blur();
+  await page.waitForFunction(() => document.querySelector('.co-name-input')?.value === 'Smoke Surveyor', undefined, { timeout: 2000 });
+
   // add a form from a file (@gcu/yaml) → jumps into Fill with the new title
   await nav('Forms').click();
   await page.locator('.co-addrow').click();
