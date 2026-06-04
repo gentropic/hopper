@@ -12,6 +12,7 @@ import { runQuery } from './query.js';
 import { resolve } from '../records/envelope.js';
 import * as loom from '../../../vendor/loom.js';
 import * as plot from '../../../vendor/plot.js';
+import * as capsule from '../../../vendor/capsule.js';
 
 const mel = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const AGG_OPS = ['count', 'sum', 'mean', 'min', 'max'];
@@ -37,7 +38,32 @@ function insertAtCursor(input, text) {
   input.focus(); input.setSelectionRange(pos, pos);
 }
 
-export async function mountMill(store, root) {
+// Render a string as a QR (Nayuki qrcodegen global). Throws past capacity → caller falls back to the link.
+function millQrSvg(text) {
+  const QR = globalThis.qrcodegen.QrCode;
+  const qr = QR.encodeText(text, QR.Ecc.MEDIUM);
+  const n = qr.size, b = 2, dim = n + b * 2; let d = '';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (qr.getModule(x, y)) d += `M${x + b} ${y + b}h1v1h-1z`;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${dim} ${dim}`); svg.setAttribute('class', 'co-qr'); svg.setAttribute('shape-rendering', 'crispEdges');
+  const bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', String(dim)); bg.setAttribute('height', String(dim)); bg.setAttribute('fill', '#fff');
+  const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d); path.setAttribute('fill', '#000');
+  svg.append(bg, path); return svg;
+}
+
+// A shared analysis capsule (`q:…`) or share link → the analysis object.
+async function resolveAnalysis(input) {
+  const s = String(input).trim();
+  let cap = s;
+  if (/^https?:\/\//i.test(s)) { const i = s.indexOf('#'); if (i >= 0 && i < s.length - 1) cap = capsule.fragmentDecode(s.slice(i + 1)); }
+  const bytes = await capsule.resolve(cap);
+  const obj = JSON.parse(new TextDecoder().decode(bytes));
+  if (!obj || obj.kind !== 'hopper-analysis') throw new Error('not a Hopper analysis capsule');
+  return obj;
+}
+
+export async function mountMill(store, root, opts = {}) {
   const forms = await store.listForms();
   const bundle = await store.exportBundle();
   const union = resolve(bundle.records || []);                 // all streams, resolved
@@ -53,6 +79,13 @@ export async function mountMill(store, root) {
   if (!withRecs.length) formSel.append(new Option('— no records in this archive —', ''));
   for (const f of withRecs) formSel.append(new Option(`${f.title} · ${byForm.get(f.hash).length} rec`, f.hash));
   head.append(mel('span', 'mill-formlabel', 'Form'), formSel);
+  const tools = mel('div', 'mill-tools');
+  const shareBtn = mel('button', 'co-btn', '⤴ Share analysis');
+  shareBtn.addEventListener('click', () => { if (current) doShare(); });
+  const openBtn = mel('button', 'co-btn co-ghost', '⧉ Open analysis');
+  openBtn.addEventListener('click', doOpen);
+  tools.append(shareBtn, openBtn);
+  head.append(tools);
   wrap.append(head);
 
   const body = mel('div', 'mill-body');
@@ -73,10 +106,11 @@ export async function mountMill(store, root) {
 
   formSel.addEventListener('change', () => selectForm(formSel.value));
 
-  function selectForm(hash) {
+  function selectForm(hash, initialQuery) {
     const f = withRecs.find((x) => x.hash === hash);
     current = f ? { form: f, table: recordsToRows(byForm.get(hash), f.tree) } : null;
-    query = { aggregates: [] };
+    query = initialQuery ? { ...initialQuery } : { aggregates: [] };
+    if (!query.aggregates) query.aggregates = [];
     renderBuilder();
     run();
   }
@@ -186,5 +220,61 @@ export async function mountMill(store, root) {
     } catch { /* charting is best-effort */ }
   }
 
-  if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); }
+  // ---- save / share an analysis (the query is plain, total data → travels like a form) ----
+  // match by form hash (exact), else by form id (same form, possibly re-versioned).
+  function applyAnalysis(a) {
+    const match = withRecs.find((x) => x.hash === a.form)
+      || withRecs.find((x) => x.tree && x.tree.meta && x.tree.meta.id === a.formId);
+    if (!match) throw new Error(`this analysis targets a form not in the open archive (${a.formTitle || a.formId || a.form})`);
+    formSel.value = match.hash;
+    selectForm(match.hash, a.query);
+  }
+
+  async function doShare() {
+    const a = { kind: 'hopper-analysis', v: 1, form: current.form.hash, formId: current.form.tree.meta && current.form.tree.meta.id, formTitle: current.form.title, query };
+    const base = location.origin + location.pathname;
+    let url, fit;
+    try { const s = await capsule.makeShare(JSON.stringify(a), { form: 'q', baseUrl: base }); url = base + '#' + s.fragment; fit = `${s.urlBytes} B · ${s.tightestFit ? 'fits ' + s.tightestFit : 'link only'}`; }
+    catch (e) { millToast('Could not build share: ' + e.message); return; }
+    const scrim = mel('div', 'co-scrim'); const panel = mel('div', 'co-confirm co-share');
+    panel.append(mel('h3', 'co-confirm-h', 'Share this analysis'));
+    panel.append(mel('div', 'co-confirm-title', `${current.form.title} — ${query.groupBy ? 'by ' + query.groupBy : 'records'}`));
+    try { const w = mel('div', 'co-qr-wrap'); w.append(millQrSvg(url)); panel.append(w); }
+    catch { panel.append(mel('div', 'co-share-toobig', '⚠ Too large for a QR — use the link.')); }
+    const linkRow = mel('div', 'co-share-link');
+    const input = mel('input', 'co-share-url'); input.readOnly = true; input.value = url;
+    const copy = mel('button', 'co-btn', 'Copy link');
+    copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(url); copy.textContent = 'Copied ✓'; } catch { input.select(); } });
+    linkRow.append(input, copy); panel.append(linkRow, mel('div', 'co-confirm-meta', fit));
+    const close = mel('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
+    panel.append(close); scrim.append(panel);
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
+    document.body.append(scrim);
+  }
+
+  function doOpen() {
+    const scrim = mel('div', 'co-scrim'); const panel = mel('div', 'co-confirm');
+    panel.append(mel('h3', 'co-confirm-h', 'Open an analysis'));
+    const ta = mel('textarea', 'co-paste-input'); ta.rows = 3; ta.placeholder = 'paste an analysis capsule (q:…) or a share link';
+    const err = mel('div', 'mill-err');
+    const actions = mel('div', 'co-confirm-actions');
+    const cancel = mel('button', 'co-btn co-ghost', 'Cancel'); cancel.addEventListener('click', () => scrim.remove());
+    const apply = mel('button', 'co-btn', 'Apply');
+    apply.addEventListener('click', async () => {
+      err.textContent = ''; apply.disabled = true;
+      try { applyAnalysis(await resolveAnalysis(ta.value)); scrim.remove(); }
+      catch (e) { err.textContent = e.message; apply.disabled = false; }
+    });
+    actions.append(cancel, apply);
+    panel.append(ta, err, actions); scrim.append(panel);
+    scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
+    document.body.append(scrim);
+  }
+
+  function millToast(msg) { const t = mel('div', 'co-toast', msg); document.body.append(t); setTimeout(() => t.remove(), 3500); }
+
+  if (opts.analysis) {
+    try { applyAnalysis(opts.analysis); }
+    catch (e) { millToast(e.message); if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); } }
+  } else if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); }
 }

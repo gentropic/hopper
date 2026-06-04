@@ -232,6 +232,8 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .mill-head { display: flex; align-items: center; gap: .6rem; }
 .mill-formlabel { font-size: .8rem; color: var(--au-muted); }
 .mill-formsel { font: inherit; padding: .35rem .5rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-text); }
+.mill-tools { display: inline-flex; gap: .5rem; margin-left: auto; }
+.mill-pending { color: var(--au-action); font-size: .85rem; }
 .mill-body { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
 .mill-pane { background: var(--au-surface); border: 1px solid var(--au-border); border-radius: 8px; padding: .8rem; }
 .mill-builder { flex: 0 0 18rem; }

@@ -83,17 +83,21 @@ Because the `query` is plain data **and** its expressions are *total*, a saved a
 a `{ source, filter, groupBy, aggregates, … }` description that can travel in a capsule
 like a form does and be **safe to open** — totality is the boundary, same guarantee as
 forms (DECISIONS §6). This is why the primary layer is the total calculus, not `soft`:
-shareability is gated on totality, not on language. (Save/share-as-capsule UI is deferred,
-§6 — the *shape* is ready.)
+shareability is gated on totality, not on language. **Built:** *⤴ Share analysis* encodes
+`{ kind:'hopper-analysis', form, formId, formTitle, query }` into a `q:` capsule (QR +
+copy-link, via `@gcu/capsule`); opening that link (or pasting the capsule via *⧉ Open
+analysis*) applies it to your matching form — by content **hash**, else by form **id**.
+Labels never enter the capsule; only stable field names + the total query travel, so a
+shared analysis can't break on a rename/translation.
 
 ## 6. Scope
 **In (v1, built):** standalone surface; open-archive → resolved union; the query builder
 (filter · group · aggregates) over the total calculus + functions; the filter aid (chips +
-backtick-by-label); loom grid + plot bar chart; the records→table + query engine, node-
-tested.
+backtick-by-label); loom grid + plot bar chart; **save/share an analysis** as a `q:`
+capsule (QR + link; opens by link or paste, applies to the matching form); the
+records→table + query engine, node-tested.
 
 **Deferred (named, not hidden):**
-- **Save / share an analysis** as a capsule (the data shape is ready; no UI/transport yet).
 - **A textual query syntax** for the pipeline (today the *expressions* are textual, the
   *pipeline* is GUI-built). If added, an XLSForm-anchored total extension keeps it
   shareable; `soft` is the alternative power lane.

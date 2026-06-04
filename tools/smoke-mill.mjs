@@ -82,8 +82,24 @@ try {
   await gridCanvas();
   await page.waitForFunction(() => { const c = document.querySelector('.mill-chart canvas'); return c && c.width > 0 && c.height > 0; }, undefined, { timeout: 5000 });
 
+  // share this analysis (group lithology + mean Fe %) → capsule QR + link
+  await page.getByRole('button', { name: 'Share analysis' }).click();
+  await page.locator('.co-share .co-qr').waitFor({ timeout: 3000 });
+  const shareUrl = await page.locator('.co-share-url').inputValue();
+  assert.ok(/#/.test(shareUrl) && shareUrl.length > 20, 'share URL carries a #capsule');
+  await page.locator('.co-share').getByRole('button', { name: 'Close' }).click();
+
+  // open the analysis LINK fresh → pending → open the same archive → it auto-applies
+  await page.goto(shareUrl);
+  await page.reload();                                             // hash-only nav → force a fresh boot that reads it
+  await page.waitForSelector('.mill-pending', { timeout: 3000 }); // landing notes the pending analysis
+  await page.locator('.mill-open input[type="file"]').setInputFiles({ name: 'qf2.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(bundle)) });
+  await page.waitForSelector('.mill-formsel', { timeout: 5000 });
+  await rowsIs(2);                                                 // the shared group/aggregate ran on open
+  assert.equal(await page.locator('.mill-groupby').inputValue(), 'lithology', 'shared analysis restored the group-by');
+
   assert.deepEqual(errs, [], 'no page errors');
-  console.log('✓ mill smoke — open archive → resolved union → query builder (filter/group/aggregate) → loom grid + plot chart');
+  console.log('✓ mill smoke — open archive → query builder (filter/group/aggregate) → grid + chart → share analysis → reopen via link applies it');
   await browser.close(); await srv.close();
 } catch (e) {
   console.error('✗ mill smoke FAILED:', e.message);

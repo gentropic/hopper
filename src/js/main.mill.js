@@ -20,5 +20,7 @@ import './mill/table.js';        // → recordsToRows: union → flat analysis t
 import './mill/query.js';        // → runQuery: structured (shareable) query over a table
 import * as loom from '../../vendor/loom.js';   // virtualized canvas grid (namespace-wrapped)
 import * as plot from '../../vendor/plot.js';   // matplotlib-style charts (namespace-wrapped)
+import * as capsule from '../../vendor/capsule.js';   // @gcu/capsule — share an analysis (namespace-wrapped)
+import '../../vendor/qrcodegen.js';             // Nayuki QR gen → `qrcodegen` global (share QR)
 import './mill/ui.js';           // → mountMill: the query builder + grid + chart
 import './mill/boot.js';         // entry: open an archive → store → mountMill
