@@ -231,6 +231,33 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .jig-valid { font-size: .82rem; font-family: var(--au-mono); }
 .jig-ok { color: #3E7D54; }
 .jig-bad { color: #C8443B; }
+
+/* ── mill surface (analysis console) — plain; polish later ── */
+.mill-landing { max-width: 32rem; margin: 4rem auto; text-align: center; }
+.mill-brand { font-family: var(--au-mono); letter-spacing: .02em; }
+.mill-sub { color: var(--au-muted); font-size: .9rem; }
+.mill-open { display: inline-block; cursor: pointer; }
+.mill-err { color: #C8443B; font-size: .85rem; margin-top: .6rem; }
+.mill-wrap { max-width: 80rem; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+.mill-head { display: flex; align-items: center; gap: .6rem; }
+.mill-formlabel { font-size: .8rem; color: var(--au-muted); }
+.mill-formsel { font: inherit; padding: .35rem .5rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-text); }
+.mill-body { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.mill-pane { background: var(--au-surface); border: 1px solid var(--au-border); border-radius: 8px; padding: .8rem; }
+.mill-builder { flex: 0 0 18rem; }
+.mill-results { flex: 1 1 30rem; min-width: 20rem; }
+.mill-pane-h { font-family: var(--au-mono); font-size: .72rem; color: var(--au-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .6rem; }
+.mill-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .5rem; flex-wrap: wrap; }
+.mill-lbl { font-size: .78rem; color: var(--au-muted); flex: 0 0 auto; }
+.mill-filter, .mill-groupby, .mill-aggop, .mill-aggfield { font: inherit; font-size: .82rem; padding: .3rem .4rem; border: 1px solid var(--au-border); border-radius: 5px; background: var(--au-bg); color: var(--au-text); }
+.mill-filter { flex: 1 1 100%; font-family: var(--au-mono); }
+.mill-filter-err { color: #C8443B; font-size: .74rem; font-family: var(--au-mono); min-height: 1em; margin-bottom: .4rem; }
+.mill-aggs { margin-top: .6rem; }
+.mill-aggrow { gap: .35rem; }
+.mill-mini { padding: .1rem .4rem; font-size: .7rem; color: var(--au-muted); }
+.mill-addagg { margin-top: .3rem; }
+.mill-grid { width: 100%; height: 300px; border: 1px solid var(--au-border); border-radius: 6px; }
+.mill-chart { margin-top: .8rem; }
 .co-btn.co-ghost { background: var(--au-surface); color: var(--au-text); border: 1px solid var(--au-border); }
 .co-btn:disabled { opacity: .5; cursor: default; }
 

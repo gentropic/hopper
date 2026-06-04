@@ -28,12 +28,13 @@
   ],
   "scripts": {
     "build": "node build.js",
-    "package": "node build.js && node build.js --target=jig && node tools/package.mjs",
+    "package": "node build.js && node build.js --target=jig && node build.js --target=mill && node tools/package.mjs",
     "test": "node --test",
     "smoke": "node build.js && node tools/smoke-render.mjs",
     "smoke:jig": "node build.js --target=jig && node tools/smoke-jig.mjs",
     "spike:mill": "node tools/spike-mill.mjs",
-    "test:all": "node --test && node build.js && node tools/smoke-render.mjs && node build.js --target=jig && node tools/smoke-jig.mjs",
+    "smoke:mill": "node build.js --target=mill && node tools/smoke-mill.mjs",
+    "test:all": "node --test && node build.js && node tools/smoke-render.mjs && node build.js --target=jig && node tools/smoke-jig.mjs && node build.js --target=mill && node tools/smoke-mill.mjs",
     "serve": "node tools/serve.mjs",
     "sync-vendor": "node tools/sync-vendor.mjs"
   },
