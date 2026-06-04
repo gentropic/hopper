@@ -52,10 +52,22 @@ try {
   await gridCanvas();
   await rowsIs(4);                                                  // initial projection: all 4 records
 
-  // total-calculus filter narrows the projection, then clears back
+  // filter aid — a field chip inserts the stable name (chip shows the label)
+  await page.locator('.mill-fieldchip', { hasText: 'Fe %' }).click();
+  assert.ok((await page.locator('.mill-filter').inputValue()).includes('fe_pct'), 'chip inserted the field name');
+
+  // total-calculus filter (typed name) narrows the projection
   await page.locator('.mill-filter').fill('fe_pct >= 50');
   await page.locator('.mill-filter').blur();
   await rowsIs(3);                                                  // QF-1, QF-3, QF-4
+
+  // reference a field by LABEL via backticks → resolves to the stable name on commit
+  await page.locator('.mill-filter').fill('`Fe %` >= 50');
+  await page.locator('.mill-filter').blur();
+  await rowsIs(3);
+  const fv = await page.locator('.mill-filter').inputValue();
+  assert.ok(fv.includes('fe_pct') && !fv.includes('`'), 'backtick label resolved to the name (stored expr is name-only)');
+
   await page.locator('.mill-filter').fill('');
   await page.locator('.mill-filter').blur();
   await rowsIs(4);

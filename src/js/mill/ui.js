@@ -16,6 +16,27 @@ import * as plot from '../../../vendor/plot.js';
 const mel = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const AGG_OPS = ['count', 'sum', 'mean', 'min', 'max'];
 
+// Filter aid: `` `Label or name` `` → the stable field NAME (resolved on commit, so the
+// stored/shareable expression stays name-only). Unknown → strip backticks, leave text
+// (parse will flag it). The query language never sees labels.
+function resolveBacktickRefs(text, cols) {
+  return String(text).replace(/`([^`]+)`/g, (_m, inner) => {
+    const key = inner.trim();
+    const byName = cols.find((c) => c.name === key);
+    if (byName) return byName.name;
+    const byLabel = cols.find((c) => String(c.label || '').toLowerCase() === key.toLowerCase());
+    return byLabel ? byLabel.name : key;
+  });
+}
+function insertAtCursor(input, text) {
+  const s = input.selectionStart ?? input.value.length, e = input.selectionEnd ?? s;
+  const before = input.value.slice(0, s), after = input.value.slice(e);
+  const ins = (before && !before.endsWith(' ') ? ' ' : '') + text + ' ';
+  input.value = before + ins + after;
+  const pos = (before + ins).length;
+  input.focus(); input.setSelectionRange(pos, pos);
+}
+
 export async function mountMill(store, root) {
   const forms = await store.listForms();
   const bundle = await store.exportBundle();
@@ -71,10 +92,25 @@ export async function mountMill(store, root) {
     const fin = mel('input', 'mill-filter');
     fin.placeholder = 'e.g. fe_pct >= 50   (blank = all)';
     fin.value = query.filter || '';
-    fin.addEventListener('change', () => { query.filter = fin.value.trim() || undefined; run(); });
+    fin.addEventListener('change', () => {
+      const resolved = resolveBacktickRefs(fin.value, cols);     // `Label` → stable name, resolved on commit
+      if (resolved !== fin.value) fin.value = resolved;
+      query.filter = fin.value.trim() || undefined;
+      run();
+    });
     frow.append(fin);
     filterErr = mel('div', 'mill-filter-err');
-    builder.append(frow, filterErr);
+
+    // field chips: click to insert the stable name (the chip shows the friendly label)
+    const chips = mel('div', 'mill-fields');
+    chips.append(mel('span', 'mill-fields-lbl', 'fields:'));
+    for (const c of cols) {
+      const chip = mel('button', 'mill-fieldchip', c.label || c.name);
+      chip.title = `insert "${c.name}"`;
+      chip.addEventListener('click', () => insertAtCursor(fin, c.name));
+      chips.append(chip);
+    }
+    builder.append(frow, filterErr, chips, mel('div', 'mill-hint', 'tip: type `Label` (backticks) to reference a field by its label'));
 
     // group by
     const grow = mel('div', 'mill-row');
