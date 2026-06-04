@@ -111,6 +111,7 @@ export function mountJig(root, opts = {}) {
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
   const answered = new Set();                   // seam keys the user has acted on → "✓ set" marker
+  let sourceMode = false;                        // GUI ⇄ Source (JSON) view
 
   root.replaceChildren();
   const wrap = jel('div', 'jig-wrap');
@@ -136,7 +137,16 @@ export function mountJig(root, opts = {}) {
     fileBtn.value = '';
   });
 
-  // ── body: schema (left) · live preview (right) ──
+  // ── GUI ⇄ Source toggle ──
+  const modeBar = jel('div', 'jig-modebar');
+  const segForm = jel('button', 'jig-seg', 'Form');
+  const segSrc = jel('button', 'jig-seg', 'Source');
+  const segGroup = jel('div', 'jig-seg-group'); segGroup.append(segForm, segSrc);
+  modeBar.append(segGroup);
+  segForm.addEventListener('click', () => { sourceMode = false; rerender(); });
+  segSrc.addEventListener('click', () => { sourceMode = true; rerender(); });
+
+  // ── body: schema / source (left) · live preview (right) ──
   const body = jel('div', 'jig-body');
   const left = jel('div', 'jig-pane jig-left');
   const right = jel('div', 'jig-pane jig-right');
@@ -150,14 +160,38 @@ export function mountJig(root, opts = {}) {
     draft = addField(draft, { name: 'field_' + i, fieldType: 'text', label: 'Field ' + i });
     rerender();
   });
-  left.append(seamBox, fieldBox, addBtn);
+
+  // source view: the §8 tree as JSON, editable. Apply re-parses + validates before
+  // it replaces the draft (no fiddly live two-way sync). JSON only for now — pasted
+  // YAML support + a YAML render arrive with treeToYaml (SPEC-hopper-jig §5).
+  const srcPanel = jel('div', 'jig-src-panel');
+  const srcArea = jel('textarea', 'jig-src'); srcArea.spellcheck = false;
+  const applyBtn = jel('button', 'co-btn', 'Apply to form');
+  const srcErr = jel('div', 'jig-src-err');
+  srcPanel.append(jel('div', 'jig-pane-h', 'Source (JSON)'), srcArea, jel('div', 'jig-src-actions', ''), srcErr);
+  srcPanel.querySelector('.jig-src-actions').append(applyBtn);
+  applyBtn.addEventListener('click', () => {
+    srcErr.textContent = '';
+    let tree;
+    try { tree = JSON.parse(srcArea.value); }
+    catch (e) { srcErr.textContent = 'JSON parse error: ' + e.message; return; }
+    const v = validateTree(tree);
+    if (!v.ok) { srcErr.textContent = `Invalid form: ${v.errors[0]}${v.errors.length > 1 ? ` (+${v.errors.length - 1} more)` : ''}`; return; }
+    draft = tree;
+    metaTitle = (draft.meta && draft.meta.title) || metaTitle;
+    titleInput.value = metaTitle;
+    seams = []; answered.clear();               // edited source is authoritative — inference questions no longer apply
+    sourceMode = false;                          // back to the form view to see the result
+    rerender();
+  });
+
   right.append(jel('div', 'jig-preview-empty', 'Live preview appears here once you infer a form.'));
   body.append(left, right);
 
   // ── footer: validation + export ──
   const bar = jel('footer', 'jig-bar');
   if (!opts.embedded) wrap.append(head);
-  wrap.append(intake, body, bar);
+  wrap.append(intake, modeBar, body, bar);
   root.append(wrap);
 
   // ---- state helpers ----
@@ -192,7 +226,22 @@ export function mountJig(root, opts = {}) {
   }
 
   // ---- renderers ----
-  function rerender() { renderSeams(); renderFields(); renderPreview(); renderBar(); }
+  function rerender() { renderToggle(); renderSeams(); renderFields(); renderSource(); renderLeft(); renderPreview(); renderBar(); }
+
+  function renderToggle() {
+    modeBar.style.display = draft ? '' : 'none';
+    segForm.classList.toggle('jig-seg-on', !sourceMode);
+    segSrc.classList.toggle('jig-seg-on', sourceMode);
+  }
+
+  // left pane shows the schema editor (form mode) or the JSON source (source mode)
+  function renderLeft() {
+    left.replaceChildren();
+    if (sourceMode) left.append(srcPanel);
+    else left.append(seamBox, fieldBox, addBtn);
+  }
+
+  function renderSource() { srcArea.value = draft ? JSON.stringify(draft, null, 2) : ''; }
 
   function renderSeams() {
     seamBox.replaceChildren();

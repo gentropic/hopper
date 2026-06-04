@@ -106,6 +106,14 @@ try {
   await nameInput.blur();
   await page.locator('.jig-valid.jig-ok').waitFor({ timeout: 2000 });
 
+  // source view: toggle to the JSON source, edit it, Apply → the GUI reflects it
+  await page.getByRole('button', { name: 'Source' }).click();
+  const srcVal = await page.locator('.jig-src').inputValue();
+  assert.ok(/"type":\s*"form"/.test(srcVal), 'source view shows the §8 tree as JSON');
+  await page.locator('.jig-src').fill(srcVal.replace('"title": "QF Sample Log"', '"title": "Edited In Source"'));
+  await page.getByRole('button', { name: 'Apply to form' }).click();
+  await page.waitForFunction(() => document.querySelector('.jig-title')?.value === 'Edited In Source', undefined, { timeout: 2000 });
+
   // wide-format repeat: re-import a table with indexed column groups → the repeat
   // seam offers to fold them; folding resolves in place and the preview shows a repeat
   await page.locator('.jig-paste').fill('Site,sample1_lith,sample1_fe,sample2_lith,sample2_fe\nA,itabirite,58,quartzite,41\nB,schist,12,itabirite,60');

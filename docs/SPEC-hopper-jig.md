@@ -117,6 +117,11 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
   comma-separated **choices editor** for select-family fields), and an identity picker.
 - **Preview** — `renderForm(createForm(draft))`: the live WYSIWYG is the real renderer,
   for free.
+- **Source** — a **GUI ⇄ Source toggle** shows the §8 tree as editable **JSON**; *Apply*
+  re-parses (`JSON.parse`) and `validateTree`-gates before replacing the draft (no live
+  two-way sync). JSON-only for now so the standalone surface stays dep-light; pasted-YAML
+  parse + a YAML *render* arrive with `treeToYaml` (§5). "The definition is data" made
+  literal — see and edit the tree directly.
 - **Export bar** — live `validateTree` status, plus **JSON**, **XLSForm `.xlsx`**
   (`treeToXlsform` + SheetJS write — the ODK off-ramp), and **Share** (a `q:` capsule QR
   + link the collector ingests). When hosted with `onEmit`, a **Use this form →** action.
@@ -130,9 +135,13 @@ select-family fields); live preview; export to JSON, XLSForm, and capsule share;
 standalone surface and the embedded Build tab.
 
 **Deferred (named, not hidden):**
-- **`@gcu/yaml` export** — needs a `data→AST` builder for strict no-implicit-typing YAML;
-  JSON already satisfies the §8 serialization contract, so a fragile hand-rolled emitter
-  was not shipped. (`treeToYaml` is the follow-on.)
+- **`treeToYaml` (YAML emit)** — the editable **JSON** source view ships (§4); a YAML
+  *render* and YAML *export* both wait on a `data→AST` builder over the vendored
+  `scalar`/`mapNode`/`seqNode` + `emit` (strict no-implicit-typing, with emit→parse
+  round-trip tests). JSON already satisfies the §8 serialization contract, so a fragile
+  hand-rolled emitter wasn't shipped; this is the next slice (it also bundles `@gcu/yaml`
+  + `loadFormFromText` into the standalone surface so the source editor accepts pasted
+  YAML, not just JSON).
 - A **richer choices editor** — the inline comma-separated editor ships (add/edit/clear
   options, value = slugged label); deferred is the polish: per-option value vs. label,
   reordering, and choice_filter / cascading selects.
@@ -163,7 +172,8 @@ trailing-multi, trailing-single, and a no-false-positive guard) + `test/jig-edit
 (edits, validate, `groupIntoRepeat`, and a **confidence round-trip**: an inferred tree —
 including a folded `repeat` — validates *and* survives `treeToXlsform → xlsformToTree`
 still contract-valid). Browser: `tools/smoke-jig.mjs` drives `jig.html` (infer → preview →
-JSON + `.xlsx` exports parsed back → fold a wide repeat and see it in the preview), and the
+JSON + `.xlsx` exports parsed back → edit the JSON **source** view and Apply → fold a wide
+repeat and see it in the preview), and the
 collector smoke exercises the **Build** tab (paste → infer → Use this form → fillable).
 
 ## 7. Prior art & positioning
