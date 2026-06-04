@@ -18,6 +18,8 @@ import { applyOverrides, findField, moveField, removeField, setLabel, setProps, 
 import { createForm } from '../renderer/state.js';
 import { renderForm } from '../renderer/render.js';
 import { treeToXlsform } from '../xlsform/index.js';
+import { loadFormFromText } from '../formsource/load.js';
+import { treeToYaml } from '../formsource/yamlemit.js';
 // Vendored namespaces — MUST match the names main.jig.js binds (`sheetjs`,
 // `capsule`): the flat build strips these import lines and resolves the bare names
 // to the manifest's namespace-wrapped globals (same pattern as render.js + sideact).
@@ -125,7 +127,8 @@ export function mountJig(root, opts = {}) {
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
   const answered = new Set();                   // seam keys the user has acted on → "✓ set" marker
-  let sourceMode = false;                        // GUI ⇄ Source (JSON) view
+  let sourceMode = false;                        // GUI ⇄ Source view
+  let srcFormat = 'yaml';                         // Source view format: 'yaml' | 'json'
 
   root.replaceChildren();
   const wrap = jel('div', 'jig-wrap');
@@ -175,20 +178,25 @@ export function mountJig(root, opts = {}) {
     rerender();
   });
 
-  // source view: the §8 tree as JSON, editable. Apply re-parses + validates before
-  // it replaces the draft (no fiddly live two-way sync). JSON only for now — pasted
-  // YAML support + a YAML render arrive with treeToYaml (SPEC-hopper-jig §5).
+  // source view: the §8 tree as editable YAML or JSON. Apply re-parses (loadFormFromText
+  // sniffs YAML vs JSON) + validates before replacing the draft (no live two-way sync).
+  const srcFmtYaml = jel('button', 'jig-seg', 'YAML');
+  const srcFmtJson = jel('button', 'jig-seg', 'JSON');
+  const srcFmtGroup = jel('div', 'jig-seg-group'); srcFmtGroup.append(srcFmtYaml, srcFmtJson);
+  srcFmtYaml.addEventListener('click', () => { srcFormat = 'yaml'; renderSource(); });
+  srcFmtJson.addEventListener('click', () => { srcFormat = 'json'; renderSource(); });
+  const srcHead = jel('div', 'jig-src-head'); srcHead.append(jel('span', 'jig-pane-h', 'Source'), srcFmtGroup);
   const srcPanel = jel('div', 'jig-src-panel');
   const srcArea = jel('textarea', 'jig-src'); srcArea.spellcheck = false;
   const applyBtn = jel('button', 'co-btn', 'Apply to form');
+  const srcActions = jel('div', 'jig-src-actions'); srcActions.append(applyBtn);
   const srcErr = jel('div', 'jig-src-err');
-  srcPanel.append(jel('div', 'jig-pane-h', 'Source (JSON)'), srcArea, jel('div', 'jig-src-actions', ''), srcErr);
-  srcPanel.querySelector('.jig-src-actions').append(applyBtn);
+  srcPanel.append(srcHead, srcArea, srcActions, srcErr);
   applyBtn.addEventListener('click', () => {
     srcErr.textContent = '';
     let tree;
-    try { tree = JSON.parse(srcArea.value); }
-    catch (e) { srcErr.textContent = 'JSON parse error: ' + e.message; return; }
+    try { tree = loadFormFromText(srcArea.value); }
+    catch (e) { srcErr.textContent = 'Parse error: ' + e.message; return; }
     const v = validateTree(tree);
     if (!v.ok) { srcErr.textContent = `Invalid form: ${v.errors[0]}${v.errors.length > 1 ? ` (+${v.errors.length - 1} more)` : ''}`; return; }
     draft = tree;
@@ -255,7 +263,13 @@ export function mountJig(root, opts = {}) {
     else left.append(seamBox, fieldBox, addBtn);
   }
 
-  function renderSource() { srcArea.value = draft ? JSON.stringify(draft, null, 2) : ''; }
+  function renderSource() {
+    srcFmtYaml.classList.toggle('jig-seg-on', srcFormat === 'yaml');
+    srcFmtJson.classList.toggle('jig-seg-on', srcFormat === 'json');
+    if (!draft) { srcArea.value = ''; return; }
+    try { srcArea.value = srcFormat === 'yaml' ? treeToYaml(draft) : JSON.stringify(draft, null, 2); }
+    catch (e) { srcArea.value = JSON.stringify(draft, null, 2); }
+  }
 
   function renderSeams() {
     seamBox.replaceChildren();
@@ -441,11 +455,13 @@ export function mountJig(root, opts = {}) {
     const actions = jel('div', 'jig-bar-actions');
     const jsonB = jel('button', 'co-btn', 'JSON');
     jsonB.addEventListener('click', () => jigDownloadBytes((draft.meta.id || 'form') + '.json', JSON.stringify(draft, null, 2), 'application/json'));
+    const yamlB = jel('button', 'co-btn', 'YAML');
+    yamlB.addEventListener('click', () => { try { jigDownloadBytes((draft.meta.id || 'form') + '.yaml', treeToYaml(draft), 'text/yaml'); } catch (e) { jigToast('YAML export failed: ' + e.message); } });
     const xlsB = jel('button', 'co-btn', 'XLSForm');
     xlsB.addEventListener('click', () => { try { exportXlsx(draft); } catch (e) { jigToast('XLSForm export failed: ' + e.message); } });
     const shareB = jel('button', 'co-btn', '⤴ Share');
     shareB.addEventListener('click', () => jigShare(draft).catch((e) => jigToast('Could not build share: ' + e.message)));
-    actions.append(jsonB, xlsB, shareB);
+    actions.append(jsonB, yamlB, xlsB, shareB);
     if (onEmit) { const useB = jel('button', 'co-btn', 'Use this form →'); useB.addEventListener('click', () => onEmit(structuredClone(draft))); actions.append(useB); }
     bar.append(actions);
   }

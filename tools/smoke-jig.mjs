@@ -80,6 +80,11 @@ try {
   assert.ok(survey.some((r) => r.type === 'geopoint'), 'geopoint emitted');
   assert.ok(choices.some((r) => r.label === 'itabirite'), 'choices sheet carries the inferred options');
 
+  // export YAML → strict @gcu/yaml source (bare keys, quoted values)
+  const y = await grabDownload(() => page.getByRole('button', { name: 'YAML' }).click());
+  assert.match(y.name, /\.yaml$/);
+  assert.ok(/type: "form"/.test(await readFile(y.path, 'utf8')), 'YAML export is strict @gcu/yaml source');
+
   // inline choices editor: lithology is the first select; add a third option and see
   // it land in the live preview (and stay valid)
   const lithChoices = page.locator('.jig-choices-edit').first();
@@ -106,13 +111,18 @@ try {
   await nameInput.blur();
   await page.locator('.jig-valid.jig-ok').waitFor({ timeout: 2000 });
 
-  // source view: toggle to the JSON source, edit it, Apply → the GUI reflects it
+  // source view: toggle to the YAML source (default), edit it, Apply → the GUI reflects it
   await page.getByRole('button', { name: 'Source' }).click();
   const srcVal = await page.locator('.jig-src').inputValue();
-  assert.ok(/"type":\s*"form"/.test(srcVal), 'source view shows the §8 tree as JSON');
-  await page.locator('.jig-src').fill(srcVal.replace('"title": "QF Sample Log"', '"title": "Edited In Source"'));
+  assert.ok(/type: "form"/.test(srcVal), 'source view shows the §8 tree as YAML (bare key, quoted value)');
+  await page.locator('.jig-src').fill(srcVal.replace('title: "QF Sample Log"', 'title: "Edited In Source"'));
   await page.getByRole('button', { name: 'Apply to form' }).click();
   await page.waitForFunction(() => document.querySelector('.jig-title')?.value === 'Edited In Source', undefined, { timeout: 2000 });
+  // and JSON is still available via the format toggle
+  await page.getByRole('button', { name: 'Source' }).click();
+  await page.locator('.jig-src-head').getByRole('button', { name: 'JSON' }).click();
+  assert.ok(/"type":\s*"form"/.test(await page.locator('.jig-src').inputValue()), 'JSON format toggle works');
+  await page.getByRole('button', { name: 'Form', exact: true }).click();
 
   // wide-format repeat: re-import a table with indexed column groups → the repeat
   // seam offers to fold them; folding resolves in place and the preview shows a repeat

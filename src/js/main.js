@@ -25,6 +25,7 @@ import * as vfs from '../../vendor/vfs.js';  // VFS backends (namespace-wrapped)
 import './storage/store.js';     // → createStore: signed append-only record store
 import * as yaml from '../../vendor/yaml.js';  // @gcu/yaml (namespace-wrapped)
 import './formsource/load.js';   // → loadFormByName/Text: yaml/json → §8 tree
+import './formsource/yamlemit.js'; // → treeToYaml: §8 tree → YAML (jig Source view + .yaml export)
 import * as sheetjs from '../../vendor/sheetjs.mjs';  // SheetJS (bundled, namespace-wrapped)
 import './formsource/xlsx.js';   // → loadXlsx: .xlsx → §8 tree (the ODK on-ramp)
 import * as capsule from '../../vendor/capsule.js';  // @gcu/capsule (bundled ESM, namespace-wrapped)

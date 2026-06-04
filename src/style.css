@@ -209,6 +209,7 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .jig-preview-empty { color: var(--au-muted); font-size: .85rem; padding: 1rem; }
 .jig-modebar { display: flex; }
 .jig-src-panel { display: flex; flex-direction: column; gap: .5rem; }
+.jig-src-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .jig-src { width: 100%; min-height: 22rem; font-family: var(--au-mono); font-size: .76rem; line-height: 1.45; padding: .55rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-bg); color: var(--au-text); resize: vertical; white-space: pre; }
 .jig-src-actions { display: flex; gap: .5rem; }
 .jig-src-err { font-size: .76rem; color: #C8443B; font-family: var(--au-mono); }

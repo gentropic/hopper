@@ -15,6 +15,9 @@ import './xlsform/index.js';     // → treeToXlsform: §8 tree → XLSForm rows
 import * as sheetjs from '../../vendor/sheetjs.mjs';    // SheetJS — CSV/XLSX intake + xlsx write
 import * as capsule from '../../vendor/capsule.js';     // @gcu/capsule — makeShare (share a form out)
 import '../../vendor/qrcodegen.js';                     // Nayuki QR gen → `qrcodegen` global (share QR)
+import * as yaml from '../../vendor/yaml.js';           // @gcu/yaml: parse (source Apply) + emit (treeToYaml)
+import './formsource/load.js';   // → loadFormFromText: YAML/JSON → §8 tree (the Source view's Apply)
+import './formsource/yamlemit.js'; // → treeToYaml: §8 tree → YAML (the Source view + .yaml export)
 import './jig/infer.js';         // → inferTree: a table → a flat §8 tree + seams (§10)
 import './jig/validate.js';      // → validateTree, IDENT_RE: the contract guardrail
 import './jig/edit.js';          // → pure tree→tree edits + applyOverrides

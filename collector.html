@@ -219,6 +219,7 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .jig-preview-empty { color: var(--au-muted); font-size: .85rem; padding: 1rem; }
 .jig-modebar { display: flex; }
 .jig-src-panel { display: flex; flex-direction: column; gap: .5rem; }
+.jig-src-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .jig-src { width: 100%; min-height: 22rem; font-family: var(--au-mono); font-size: .76rem; line-height: 1.45; padding: .55rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-bg); color: var(--au-text); resize: vertical; white-space: pre; }
 .jig-src-actions { display: flex; gap: .5rem; }
 .jig-src-err { font-size: .76rem; color: #C8443B; font-family: var(--au-mono); }
@@ -7894,6 +7895,45 @@ function loadFormByName(name, text) {
 function loadFormFromText(text) {
   const t = String(text).trim();
   return loadFormText(t, t[0] === '{' || t[0] === '[' ? 'json' : 'yaml');
+}
+
+// ── src/js/formsource/yamlemit.js ──
+// tree → `@gcu/yaml` source — the inverse of load.js's astToData. The library emits
+// from a typed AST, not plain data, so we build the AST: `dataToAst` tags each JS
+// value by its RUNTIME type. Strings become `string` scalars, which emit
+// double-quoted by default — so the strict no-implicit-typing contract holds:
+// `"no"`, `"2026-06-01"`, `"007"` round-trip as strings, never coerced. Identifier
+// keys emit bare (isBareKey), so output matches the §8 house style (bare keys,
+// quoted values). Gated by emit→parse round-trip vectors (test/yamlemit.test.mjs).
+//
+// Namespace-import @gcu/yaml — the flat build binds the `yaml` global from the
+// target manifest (do NOT destructure; `parse` collides with rules/eval.js).
+
+
+
+// JS value → @gcu/yaml AST node. Type tags must match the emitter's vocabulary
+// ('null' | 'bool' | 'int' | 'float' | 'string').
+function dataToAst(v) {
+  if (v === null || v === undefined) return yaml.scalar('null', null);
+  const t = typeof v;
+  if (t === 'boolean') return yaml.scalar('bool', v);
+  if (t === 'number') return yaml.scalar(Number.isInteger(v) ? 'int' : 'float', v);
+  if (t === 'string') return yaml.scalar('string', v);
+  if (Array.isArray(v)) return yaml.seqNode(v.map(dataToAst));
+  if (t === 'object') {
+    const entries = [];
+    for (const [k, val] of Object.entries(v)) {
+      if (val === undefined) continue;                 // parity with JSON.stringify
+      entries.push({ key: yaml.scalar('string', String(k)), value: dataToAst(val) });
+    }
+    return yaml.mapNode(entries);
+  }
+  return yaml.scalar('string', String(v));
+}
+
+// A §8 tree (or any JSON-shaped value that's a map/seq at the top) → YAML text.
+function treeToYaml(tree) {
+  return yaml.emit(dataToAst(tree));
 }
 
 // ── vendor/sheetjs.mjs (namespace: sheetjs) ──
@@ -34989,6 +35029,8 @@ function groupIntoRepeat(tree, spec) {
 
 
 
+
+
 // Vendored namespaces — MUST match the names main.jig.js binds (`sheetjs`,
 // `capsule`): the flat build strips these import lines and resolves the bare names
 // to the manifest's namespace-wrapped globals (same pattern as render.js + sideact).
@@ -35096,7 +35138,8 @@ function mountJig(root, opts = {}) {
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
   const answered = new Set();                   // seam keys the user has acted on → "✓ set" marker
-  let sourceMode = false;                        // GUI ⇄ Source (JSON) view
+  let sourceMode = false;                        // GUI ⇄ Source view
+  let srcFormat = 'yaml';                         // Source view format: 'yaml' | 'json'
 
   root.replaceChildren();
   const wrap = jel('div', 'jig-wrap');
@@ -35146,20 +35189,25 @@ function mountJig(root, opts = {}) {
     rerender();
   });
 
-  // source view: the §8 tree as JSON, editable. Apply re-parses + validates before
-  // it replaces the draft (no fiddly live two-way sync). JSON only for now — pasted
-  // YAML support + a YAML render arrive with treeToYaml (SPEC-hopper-jig §5).
+  // source view: the §8 tree as editable YAML or JSON. Apply re-parses (loadFormFromText
+  // sniffs YAML vs JSON) + validates before replacing the draft (no live two-way sync).
+  const srcFmtYaml = jel('button', 'jig-seg', 'YAML');
+  const srcFmtJson = jel('button', 'jig-seg', 'JSON');
+  const srcFmtGroup = jel('div', 'jig-seg-group'); srcFmtGroup.append(srcFmtYaml, srcFmtJson);
+  srcFmtYaml.addEventListener('click', () => { srcFormat = 'yaml'; renderSource(); });
+  srcFmtJson.addEventListener('click', () => { srcFormat = 'json'; renderSource(); });
+  const srcHead = jel('div', 'jig-src-head'); srcHead.append(jel('span', 'jig-pane-h', 'Source'), srcFmtGroup);
   const srcPanel = jel('div', 'jig-src-panel');
   const srcArea = jel('textarea', 'jig-src'); srcArea.spellcheck = false;
   const applyBtn = jel('button', 'co-btn', 'Apply to form');
+  const srcActions = jel('div', 'jig-src-actions'); srcActions.append(applyBtn);
   const srcErr = jel('div', 'jig-src-err');
-  srcPanel.append(jel('div', 'jig-pane-h', 'Source (JSON)'), srcArea, jel('div', 'jig-src-actions', ''), srcErr);
-  srcPanel.querySelector('.jig-src-actions').append(applyBtn);
+  srcPanel.append(srcHead, srcArea, srcActions, srcErr);
   applyBtn.addEventListener('click', () => {
     srcErr.textContent = '';
     let tree;
-    try { tree = JSON.parse(srcArea.value); }
-    catch (e) { srcErr.textContent = 'JSON parse error: ' + e.message; return; }
+    try { tree = loadFormFromText(srcArea.value); }
+    catch (e) { srcErr.textContent = 'Parse error: ' + e.message; return; }
     const v = validateTree(tree);
     if (!v.ok) { srcErr.textContent = `Invalid form: ${v.errors[0]}${v.errors.length > 1 ? ` (+${v.errors.length - 1} more)` : ''}`; return; }
     draft = tree;
@@ -35226,7 +35274,13 @@ function mountJig(root, opts = {}) {
     else left.append(seamBox, fieldBox, addBtn);
   }
 
-  function renderSource() { srcArea.value = draft ? JSON.stringify(draft, null, 2) : ''; }
+  function renderSource() {
+    srcFmtYaml.classList.toggle('jig-seg-on', srcFormat === 'yaml');
+    srcFmtJson.classList.toggle('jig-seg-on', srcFormat === 'json');
+    if (!draft) { srcArea.value = ''; return; }
+    try { srcArea.value = srcFormat === 'yaml' ? treeToYaml(draft) : JSON.stringify(draft, null, 2); }
+    catch (e) { srcArea.value = JSON.stringify(draft, null, 2); }
+  }
 
   function renderSeams() {
     seamBox.replaceChildren();
@@ -35412,11 +35466,13 @@ function mountJig(root, opts = {}) {
     const actions = jel('div', 'jig-bar-actions');
     const jsonB = jel('button', 'co-btn', 'JSON');
     jsonB.addEventListener('click', () => jigDownloadBytes((draft.meta.id || 'form') + '.json', JSON.stringify(draft, null, 2), 'application/json'));
+    const yamlB = jel('button', 'co-btn', 'YAML');
+    yamlB.addEventListener('click', () => { try { jigDownloadBytes((draft.meta.id || 'form') + '.yaml', treeToYaml(draft), 'text/yaml'); } catch (e) { jigToast('YAML export failed: ' + e.message); } });
     const xlsB = jel('button', 'co-btn', 'XLSForm');
     xlsB.addEventListener('click', () => { try { exportXlsx(draft); } catch (e) { jigToast('XLSForm export failed: ' + e.message); } });
     const shareB = jel('button', 'co-btn', '⤴ Share');
     shareB.addEventListener('click', () => jigShare(draft).catch((e) => jigToast('Could not build share: ' + e.message)));
-    actions.append(jsonB, xlsB, shareB);
+    actions.append(jsonB, yamlB, xlsB, shareB);
     if (onEmit) { const useB = jel('button', 'co-btn', 'Use this form →'); useB.addEventListener('click', () => onEmit(structuredClone(draft))); actions.append(useB); }
     bar.append(actions);
   }

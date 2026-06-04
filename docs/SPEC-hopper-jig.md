@@ -122,14 +122,29 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
   across fields, with a "shared ×N" marker), and an identity picker.
 - **Preview** — `renderForm(createForm(draft))`: the live WYSIWYG is the real renderer,
   for free.
-- **Source** — a **GUI ⇄ Source toggle** shows the §8 tree as editable **JSON**; *Apply*
-  re-parses (`JSON.parse`) and `validateTree`-gates before replacing the draft (no live
-  two-way sync). JSON-only for now so the standalone surface stays dep-light; pasted-YAML
-  parse + a YAML *render* arrive with `treeToYaml` (§5). "The definition is data" made
-  literal — see and edit the tree directly.
-- **Export bar** — live `validateTree` status, plus **JSON**, **XLSForm `.xlsx`**
-  (`treeToXlsform` + SheetJS write — the ODK off-ramp), and **Share** (a `q:` capsule QR
-  + link the collector ingests). When hosted with `onEmit`, a **Use this form →** action.
+- **Source** — a **GUI ⇄ Source toggle** shows the §8 tree as editable **YAML or JSON**
+  (a format switch; YAML via `treeToYaml`, below). *Apply* re-parses (`loadFormFromText`
+  sniffs YAML vs JSON, so you can paste either) and `validateTree`-gates before replacing
+  the draft (no live two-way sync). "The definition is data" made literal — see and edit
+  the tree directly.
+- **Export bar** — live `validateTree` status, plus **JSON**, **YAML** (`treeToYaml` —
+  strict `@gcu/yaml`), **XLSForm `.xlsx`** (`treeToXlsform` + SheetJS write — the ODK
+  off-ramp), and **Share** (a `q:` capsule QR + link the collector ingests). When hosted
+  with `onEmit`, a **Use this form →** action.
+
+### YAML source/export — `treeToYaml` (`formsource/yamlemit.js`)
+
+The inverse of `load.js`'s `astToData`. `@gcu/yaml` emits from a typed **AST**, not plain
+data, so `dataToAst` builds it — tagging each JS value by runtime type. Strings become
+`string` scalars (emitted double-quoted by default), so the **strict no-implicit-typing**
+contract holds: `"no"`, `"2026-06-01"`, `"007"`, `"true"` round-trip as strings, never
+coerced; real numbers/booleans/`null`/empty collections keep their types; identifier keys
+emit bare (house style: bare keys, quoted values). The risk here is *silent* corruption (a
+value re-typed on the way out would change the canonical tree, invariant §1), so it's
+**gated by emit→parse round-trip conformance vectors** (`test/yamlemit.test.mjs`) — the
+emitter is ~15 lines; the proof of losslessness is the real work. Shared by the standalone
+jig (which now bundles `@gcu/yaml` + `loadFormFromText` for the source editor) and the
+collector.
 
 ## 5. Scope
 
@@ -137,17 +152,14 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
 `repeat` detection** (embedded + trailing indexed column groups → a foldable repeat, §3.2);
 an editable auto-form (incl. an inline **choices editor**, **shared choice lists** — a
 field can reuse another's list, plus an inference seam that merges identical-option
-columns — and a GUI ⇄ **Source (JSON)** view); live preview; export to JSON, XLSForm, and
-capsule share; the standalone surface and the embedded Build tab.
+columns — and a GUI ⇄ **Source (YAML/JSON)** view, editable + paste-to-parse); live
+preview; export to **JSON, YAML, XLSForm, and capsule share**; the standalone surface and
+the embedded Build tab.
 
 **Deferred (named, not hidden):**
-- **`treeToYaml` (YAML emit)** — the editable **JSON** source view ships (§4); a YAML
-  *render* and YAML *export* both wait on a `data→AST` builder over the vendored
-  `scalar`/`mapNode`/`seqNode` + `emit` (strict no-implicit-typing, with emit→parse
-  round-trip tests). JSON already satisfies the §8 serialization contract, so a fragile
-  hand-rolled emitter wasn't shipped; this is the next slice (it also bundles `@gcu/yaml`
-  + `loadFormFromText` into the standalone surface so the source editor accepts pasted
-  YAML, not just JSON).
+- *(shipped)* **YAML emit** (`treeToYaml`) — the source view + `.yaml` export + pasted-YAML
+  parsing, gated by round-trip vectors (the YAML source/export note in §4). Was deferred
+  for the `data→AST`/no-implicit-typing care; now in.
 - A **richer choices editor** — the inline comma-separated editor ships (add/edit/clear
   options, value = slugged label); deferred is the polish: per-option value vs. label,
   reordering, and choice_filter / cascading selects.
@@ -177,8 +189,11 @@ capsule share; the standalone surface and the embedded Build tab.
 trailing-multi, trailing-single, and a no-false-positive guard) + `test/jig-edit.test.mjs`
 (edits, validate, `groupIntoRepeat`, and a **confidence round-trip**: an inferred tree —
 including a folded `repeat` — validates *and* survives `treeToXlsform → xlsformToTree`
-still contract-valid). Browser: `tools/smoke-jig.mjs` drives `jig.html` (infer → preview →
-JSON + `.xlsx` exports parsed back → edit the JSON **source** view and Apply → fold a wide
+still contract-valid). `test/yamlemit.test.mjs` is the **YAML round-trip gate** —
+`treeToYaml` → `loadFormText` deep-equals the original across the strictness landmines
+(`"no"`, dates, leading-zero codes, quotes/colons, real numbers, empties, nested repeats).
+Browser: `tools/smoke-jig.mjs` drives `jig.html` (infer → preview → JSON + `.xlsx` + YAML
+exports parsed back → edit the **YAML source** view and Apply, JSON-format toggle → fold a wide
 repeat, and share one list across two identical-option columns), and the
 collector smoke exercises the **Build** tab (paste → infer → Use this form → fillable).
 
