@@ -162,6 +162,9 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .co-rec-act { font: inherit; font-size: .68rem; padding: .1rem .45rem; border: 1px solid var(--au-border); border-radius: 5px; background: none; color: var(--au-muted); cursor: pointer; }
 .co-rec-act:hover { color: var(--au-text); border-color: var(--au-action); }
 .co-btn.co-danger { background: #C8443B; }   /* fault */
+.co-sync-or { margin: .7rem 0 .35rem; font-size: .78rem; color: var(--au-muted); text-align: center; }
+.co-sync-room { display: flex; gap: .5rem; }
+.co-sync-roomid { flex: 1; font: inherit; padding: .45rem .55rem; border: 1px solid var(--au-border); border-radius: 6px; background: var(--au-surface); color: var(--au-text); }
 .co-actions { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; }
 
 .co-btn { font: inherit; font-size: .85rem; padding: .5rem .9rem; border: none; border-radius: 6px; background: var(--au-action); color: #fff; cursor: pointer; }

@@ -34,6 +34,9 @@ import '../../vendor/qrcodegen.js'; // Nayuki QR gen — classic global script, 
 import './sync/session.js';       // → syncSession: transport-agnostic bundle exchange + set-union merge
 import './sync/webrtc.js';        // → webrtcOffer/webrtcAnswer: serverless WebRTC channel (QR handshake)
 import './sync/handshake.js';     // → encodeHandshake/decodeHandshake: SDP ↔ QR (capsule-deflated)
+import * as trystero from '../../vendor/trystero.js';  // Trystero P2P carrier (nostr signaling, namespace-wrapped)
+import './sync/trystero.js';      // → trysteroChannel: a Trystero room → syncSession channel
+import './sync/trystero-room.js'; // → joinSyncRoom: vendored joinRoom + the adapter
 import './jig/infer.js';         // → inferTree: a table → a flat §8 tree + seams (the Build tab)
 import './jig/validate.js';      // → validateTree, IDENT_RE: the contract guardrail
 import './jig/edit.js';          // → pure tree→tree edits + applyOverrides

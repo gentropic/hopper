@@ -246,6 +246,7 @@ try {
   // encodeHandshake + qrSvg). The scan/connect leg is camera-only, so it stops here.
   await nav('Outbox').click();
   await page.getByRole('button', { name: 'Sync with a peer' }).click();
+  assert.equal(await page.locator('.co-sync-roomid').count(), 1, 'Trystero room-join option present (no-camera carrier)');
   await page.locator('.co-sync').getByRole('button', { name: 'Start' }).click();
   await page.locator('.co-sync .co-qr').waitFor({ timeout: 8000 });
   await page.locator('.co-sync').getByRole('button', { name: 'Close' }).click();

@@ -16,6 +16,7 @@ import { resolveFormCapsule } from '../formsource/capsule.js';
 import { syncSession } from '../sync/session.js';
 import { webrtcOffer, webrtcAnswer } from '../sync/webrtc.js';
 import { encodeHandshake, decodeHandshake } from '../sync/handshake.js';
+import { joinSyncRoom } from '../sync/trystero-room.js';
 import * as capsule from '../../../vendor/capsule.js';
 import * as vfs from '../../../vendor/vfs.js';
 
@@ -549,11 +550,32 @@ export async function mountShell(store, root, opts = {}) {
       } catch (e) { fail(e); }
     }
 
-    body.append(ce('p', 'co-sync-hint', 'Both of you on the same wifi. One Starts and one Joins — then scan each other’s codes.'));
+    // Trystero room carrier (DECISIONS §2): no camera, no same-network — both type the
+    // same room name and reconcile over public signaling. afterConnect is shared with
+    // the QR path (same syncSession merge once a channel is live).
+    async function runRoom(roomId) {
+      try {
+        status('Joining room… waiting for your peer');
+        const { room, channel } = joinSyncRoom(roomId, { timeout: 120000 });
+        teardown = () => { try { room.leave(); } catch {} };
+        const ch = await channel;                              // resolves when a peer arrives; rejects on timeout
+        await afterConnect({ channel: ch, close: () => ch.close() });
+      } catch (e) { fail(e); }
+    }
+
+    body.append(ce('p', 'co-sync-hint', 'Same wifi: one Starts and one Joins, then scan each other’s codes.'));
     const roles = ce('div', 'co-sync-roles');
     const start = ce('button', 'co-btn', 'Start'); start.addEventListener('click', runOfferer);
     const join = ce('button', 'co-btn co-ghost', 'Join'); join.addEventListener('click', runAnswerer);
     roles.append(start, join); body.append(roles);
+
+    body.append(ce('div', 'co-sync-or', 'or — no camera, across networks:'));
+    const roomRow = ce('div', 'co-sync-room');
+    const roomInput = ce('input', 'co-sync-roomid'); roomInput.placeholder = 'shared room name';
+    const roomBtn = ce('button', 'co-btn', 'Join room');
+    roomBtn.addEventListener('click', () => { const id = roomInput.value.trim(); if (id) runRoom(id); });
+    roomInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') roomBtn.click(); });
+    roomRow.append(roomInput, roomBtn); body.append(roomRow);
   }
 
   // ---- Outbox ----

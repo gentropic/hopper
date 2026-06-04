@@ -23,7 +23,7 @@ bundler) was rejected to preserve the single-file, zero-supply-chain ethos
 | `ggwave.*`     | upstream `ggwave` (MIT, WASM)     | data-over-sound sync fallback (bundled, §5.5) |
 | `sheetjs.*`    | SheetJS (community build)         | xlsx import/export for the converter |
 | `noble-ed25519.js` | `@noble/ed25519` (MIT, paulmillr) | Ed25519 **fallback** when the browser lacks Web Crypto Ed25519 |
-| `trystero.js`  | `trystero` (npm, MIT)             | room-based P2P sync carrier (WebRTC + public signaling) — `joinRoom` → a channel for syncSession (**pending fetch**) |
+| `trystero.js`  | `trystero` (npm, MIT)             | room-based P2P sync carrier (WebRTC + nostr signaling) — `joinRoom` → a channel for syncSession |
 
 ## Ed25519 fallback (noble) — vendored ✓
 
@@ -77,28 +77,39 @@ LICENSE in `vendor/sheetjs.LICENSE`. The `.xlsx` form source (ODK on-ramp).
 call, not debt: bundling keeps the single-file artifact self-contained, which is
 load-bearing for Hopper. Do **not** lazy-load/code-split it — see DECISIONS §13.
 
-## Trystero (P2P sync carrier) — pending vendor
+## Trystero (P2P sync carrier) — vendored ✓
 
 `src/js/sync/trystero.js` is the **channel adapter** (`trysteroChannel(room)` → the
-syncSession `{send,onMessage,onClose,close}` channel). It is dependency-free and
-node-tested (`test/sync-trystero.test.mjs` runs the real merge + blob lane over a mock
-room), because it takes an **injected** room — so it builds and tests without the bundle.
-Shipping the live carrier needs the bundle vendored:
+syncSession `{send,onMessage,onClose,close}` channel), dependency-free and node-tested
+(`test/sync-trystero.test.mjs` runs the real merge + blob lane over a mock room — it takes
+an **injected** room). `src/js/sync/trystero-room.js` is the wiring (`joinSyncRoom` =
+vendored `joinRoom` + the adapter), surfaced as the Outbox **"Join a room"** option.
 
 | field | value |
 |-------|-------|
-| package | `trystero` (Dan Motzenbecker), MIT |
-| version | **pin at fetch** (record version + local sha256 here, like noble) |
-| strategy | one signaling bundle — **Nostr** or **MQTT** (public relays; BitTorrent trackers are flakier). Entry e.g. `trystero/nostr` |
-| source | `npm pack trystero@<ver>` → copy the chosen strategy's built ESM → `vendor/trystero.js` |
-| exports | `joinRoom(config, roomId)`, `selfId`, … |
+| package | `trystero` (Dan Motzenbecker), MIT — via `@trystero-p2p/nostr@0.25.1` |
+| graph | `@trystero-p2p/nostr` → `@trystero-p2p/core` (zero ext deps) + `@noble/secp256k1@3.1.0` (same family as our noble-ed25519) |
+| strategy | **Nostr** (the default in trystero ≥0.25; public relays). MQTT/torrent are sibling packages, swappable by re-bundling a different entry. |
+| local sha256 | `sha256-7rav3ZTNijJ_2r-yG2_Lf73V9LAlI24CSvt57jIqKHg` (`vendor/trystero.js`, 134 kB) |
+| license | `vendor/trystero.LICENSE` (MIT) |
+| exports | `joinRoom(config, roomId)`, `selfId`, `subscribe`, … |
 
-Then wire it: manifest `import * as trystero from '../../vendor/trystero.js'`
-(namespace-wrapped, like sheetjs/capsule); a `joinSyncRoom(roomId)` helper =
-`trysteroChannel(trystero.joinRoom({ appId: 'gentropic-hopper' }, roomId))`; and an Outbox
-**"Join a sync room"** entry beside the QR handshake. **Caveat (state it plainly):**
-Trystero is a *convenience* carrier over public signaling, layered on the no-network floor
-— archive import + WebRTC stay (DECISIONS §2 carrier order).
+**This is the one vendored dep produced by a bundler at vendor-time.** trystero ≥0.25
+ships as a small ESM *dependency graph* (above), not a single self-contained file like
+capsule. So we bundle it once with **esbuild** — a *vendoring* tool, NOT a runtime build
+dep; `node build.js` stays bundler-free. Reproducible (re-run → re-hash):
+
+```
+npm install @trystero-p2p/nostr@0.25.1
+printf "export * from '@trystero-p2p/nostr';\n" > entry.mjs
+npx esbuild@0.24.2 entry.mjs --bundle --format=esm --platform=browser \
+  --target=es2020 --legal-comments=inline --outfile=vendor/trystero.js
+```
+
+The build **namespace-wraps** it (`import * as trystero`); the import is inert until
+`joinRoom` is called (smoke-verified: the page loads clean with it bundled). **Caveat
+(state it plainly):** Trystero is a *convenience* carrier over public signaling, layered
+on the no-network floor — archive import + WebRTC stay (DECISIONS §2 carrier order).
 
 Each file added here gets a row in `vendor-licenses.json` (to be created) with
 its license + source commit, mirroring `weir/vendor-licenses.json`.
