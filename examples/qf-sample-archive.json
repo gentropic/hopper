@@ -1,0 +1,454 @@
+{
+  "v": 1,
+  "streams": {
+    "i23Z3zzluV019heZ7Lkzu4.json": {
+      "v": 1,
+      "pubkey": "OAqVAWk8nDeiiJby8z1y9__uAgG4Gnsbg3xRvogt5P0",
+      "device": "EOzA0jAkFqo",
+      "epoch": "29JCUdRHrBc",
+      "name": "QF Field Team"
+    }
+  },
+  "forms": {
+    "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM.json": {
+      "type": "form",
+      "meta": {
+        "id": "qfsamp",
+        "title": "QF Sample Log",
+        "version": "2026-06-01",
+        "lang": "en",
+        "mode": "append"
+      },
+      "fields": [
+        {
+          "name": "site_id",
+          "fieldType": "text",
+          "label": "Site ID",
+          "props": {
+            "required": true
+          }
+        },
+        {
+          "name": "lithology",
+          "fieldType": "select",
+          "label": "Lithology",
+          "props": {
+            "list": "litho"
+          }
+        },
+        {
+          "name": "sample_type",
+          "fieldType": "select",
+          "label": "Sample Type",
+          "props": {
+            "list": "stype"
+          }
+        },
+        {
+          "name": "fe_pct",
+          "fieldType": "number",
+          "label": "Fe %"
+        },
+        {
+          "name": "sio2_pct",
+          "fieldType": "number",
+          "label": "SiO₂ %"
+        },
+        {
+          "name": "depth_m",
+          "fieldType": "number",
+          "label": "Depth (m)"
+        },
+        {
+          "name": "sampled",
+          "fieldType": "date",
+          "label": "Sampled"
+        }
+      ],
+      "choices": {
+        "litho": [
+          {
+            "value": "itabirite",
+            "label": "itabirite"
+          },
+          {
+            "value": "quartzite",
+            "label": "quartzite"
+          },
+          {
+            "value": "schist",
+            "label": "schist"
+          },
+          {
+            "value": "phyllite",
+            "label": "phyllite"
+          },
+          {
+            "value": "hematitite",
+            "label": "hematitite"
+          }
+        ],
+        "stype": [
+          {
+            "value": "grab",
+            "label": "grab"
+          },
+          {
+            "value": "channel",
+            "label": "channel"
+          },
+          {
+            "value": "chip",
+            "label": "chip"
+          }
+        ]
+      },
+      "rules": [],
+      "views": []
+    }
+  },
+  "records": [
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/0",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.332Z",
+      "values": {
+        "site_id": "QF-101",
+        "lithology": "itabirite",
+        "sample_type": "channel",
+        "fe_pct": 58.2,
+        "sio2_pct": 12.1,
+        "depth_m": 8,
+        "sampled": "2026-05-28"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "HuGAcqWVUc8NPYfyswAlpaBc1BaPjXXECMDUUroK1-3Hz6XJn-2rqtUvLjPtTa8uGhU51dvYator0ift5_AeBQ"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/1",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.334Z",
+      "values": {
+        "site_id": "QF-102",
+        "lithology": "itabirite",
+        "sample_type": "channel",
+        "fe_pct": 61.4,
+        "sio2_pct": 9.8,
+        "depth_m": 14,
+        "sampled": "2026-05-28"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "RJmG7z2fheTFipjepBxeKRFYEIn-DMOtZKzwCtMLbMKCgMNQcKE5iR69IR2b5yqbtsYRokWGxT64_hKoTT0vAQ"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/2",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.334Z",
+      "values": {
+        "site_id": "QF-103",
+        "lithology": "quartzite",
+        "sample_type": "grab",
+        "fe_pct": 22.5,
+        "sio2_pct": 68,
+        "depth_m": 5,
+        "sampled": "2026-05-29"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "L4oHwkxxc-yfV-f6VeMF_j516fMdUfxHQexFPj-o_wl7MryG-zGrXQLVsk-_ey2pj3FfAVB-dARncwNRWEniBg"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/3",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.334Z",
+      "values": {
+        "site_id": "QF-104",
+        "lithology": "hematitite",
+        "sample_type": "channel",
+        "fe_pct": 66.1,
+        "sio2_pct": 3.2,
+        "depth_m": 22,
+        "sampled": "2026-05-29"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "OHuTd9St4IaxmgwORL9xs1hNkIdoWrISYm9V-CRcFNfujiyACAHkLa6ArNfBGCKTuwG3YjT7vGJ5T6H3aeN5Bg"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/4",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.335Z",
+      "values": {
+        "site_id": "QF-105",
+        "lithology": "schist",
+        "sample_type": "grab",
+        "fe_pct": 18.9,
+        "sio2_pct": 54.3,
+        "depth_m": 3,
+        "sampled": "2026-05-30"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "vcxPqdw_WUdD5hnS-gyvLQESo4gfoTn1ZekBj8QPd33QpbHB1BLXeIFQtRsj3CLc_-xhpV-y_lsRFz48kzFLBA"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/5",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.335Z",
+      "values": {
+        "site_id": "QF-106",
+        "lithology": "itabirite",
+        "sample_type": "chip",
+        "fe_pct": 55,
+        "sio2_pct": 15.7,
+        "depth_m": 19,
+        "sampled": "2026-05-30"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "Fijhl-sRQQbG06E50whhCbacpO35rm_aHXkpP74QYOsiGptbkpLLOYNquQw2tM5jLH9ioQViIPti6EKN0ddOCw"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/6",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.335Z",
+      "values": {
+        "site_id": "QF-107",
+        "lithology": "phyllite",
+        "sample_type": "grab",
+        "fe_pct": 12.4,
+        "sio2_pct": 60.1,
+        "depth_m": 4,
+        "sampled": "2026-05-31"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "9l2FmCql0VBS5N4ZHKfxNSebu4cOouvLXOVL_CG27k2CmIPazLWKLHXDa3FK4RcgYy_3uk-VTq57XBr21-YXBw"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/7",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.335Z",
+      "values": {
+        "site_id": "QF-108",
+        "lithology": "hematitite",
+        "sample_type": "channel",
+        "fe_pct": 67.8,
+        "sio2_pct": 2.1,
+        "depth_m": 27,
+        "sampled": "2026-05-31"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "7Xkh6HbPWZHbGQ9jg_xhcigJcTnZ7pOafj5LcUeP_fIwtz9cOdGdNt8bjmW7ANKKxl9wXzn--MdCEV1iHNI6BQ"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/8",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.336Z",
+      "values": {
+        "site_id": "QF-109",
+        "lithology": "itabirite",
+        "sample_type": "channel",
+        "fe_pct": 59.6,
+        "sio2_pct": 11,
+        "depth_m": 16,
+        "sampled": "2026-06-01"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "RKQNiz7iexxOkDmtCbKyrjg7pnZ2UfqaHp0LkAB1woE9cT31QJZOPEpR95MMeVCnhsLeIUIhY9Y9bMyCuwP5Ag"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/9",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.336Z",
+      "values": {
+        "site_id": "QF-110",
+        "lithology": "quartzite",
+        "sample_type": "chip",
+        "fe_pct": 25.1,
+        "sio2_pct": 64.5,
+        "depth_m": 9,
+        "sampled": "2026-06-01"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "vnZ_JbexynCM-y4KLuVSBGDKZqyhzRYvABdS6j4MUOlrEhtoCdULk8rsY7QzVS9xOrcaDlowgdKdDrEl0w50Dg"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/10",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.336Z",
+      "values": {
+        "site_id": "QF-111",
+        "lithology": "itabirite",
+        "sample_type": "grab",
+        "fe_pct": 52.3,
+        "sio2_pct": 18.9,
+        "depth_m": 6,
+        "sampled": "2026-06-02"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "QuyeEfOP8_4nkM96LJi6WqprUsS-_EcDxcC4jvBMteR5a485wrJpTIQkUCcW3j8HWQH9Z4eyV6NOspPckehLCg"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/11",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.336Z",
+      "values": {
+        "site_id": "QF-112",
+        "lithology": "hematitite",
+        "sample_type": "channel",
+        "fe_pct": 64.9,
+        "sio2_pct": 4,
+        "depth_m": 31,
+        "sampled": "2026-06-02"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "03DyYZZK0EgLb0Ig-W-oc2nuk7biSuLhXPQfh8xPOPhcLzN5jRWb6-Yv48oGQlqDALzvPQ2fWGtb4ZGp-_--Ag"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/12",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.337Z",
+      "values": {
+        "site_id": "QF-113",
+        "lithology": "schist",
+        "sample_type": "chip",
+        "fe_pct": 16.2,
+        "sio2_pct": 57.8,
+        "depth_m": 11,
+        "sampled": "2026-06-03"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "IETbiDvnZUsqbVd3pG__8d1yPSiq19mfu3dJOlfALiQMlzIxOQ7eEejR-gXFJ84ezq_kxKTb0hLZjLTqjL_nBA"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/13",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.337Z",
+      "values": {
+        "site_id": "QF-114",
+        "lithology": "itabirite",
+        "sample_type": "channel",
+        "fe_pct": 60.7,
+        "sio2_pct": 10.4,
+        "depth_m": 24,
+        "sampled": "2026-06-03"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "DvOBwsEenTm8cfPHa8NsnJOX0ISfZlwdkEooQbsFGKJriBCvFAhnawnUGJxk18rFmt3WC3ltf96T4x6jIHdTDw"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/14",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.337Z",
+      "values": {
+        "site_id": "QF-115",
+        "lithology": "phyllite",
+        "sample_type": "grab",
+        "fe_pct": 14.8,
+        "sio2_pct": 58.2,
+        "depth_m": 7,
+        "sampled": "2026-06-04"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "ms4MRmMqnF2nuywB_M21f74jV2KH2jwUquTB8GH_-wpLIIFxJqmhMks_xl9570Ngnpj3v32IkppqmonZ4d0jDg"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/15",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.337Z",
+      "values": {
+        "site_id": "QF-116",
+        "lithology": "itabirite",
+        "sample_type": "channel",
+        "fe_pct": 57.1,
+        "sio2_pct": 13.3,
+        "depth_m": 18,
+        "sampled": "2026-06-04"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "oDHL-bx6b436B112tgHrWC61eORHals8lxycVQh471JaM40RNLXNF91RMxOwb0BJCBNcwjr1sT4mH3BgI9ejAw"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/16",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.337Z",
+      "values": {
+        "site_id": "QF-117",
+        "lithology": "hematitite",
+        "sample_type": "chip",
+        "fe_pct": 65.5,
+        "sio2_pct": 3.6,
+        "depth_m": 29,
+        "sampled": "2026-06-04"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "689Cx1TCaXcDiZ9nYSuEC-HKncOACB1NUkivwlFJeAWMPTpjrPXKpE2zgxazXYPeu1ggXIvJeFHQ38SFBh92DQ"
+    },
+    {
+      "v": 1,
+      "id": "i23Z3zzluV019heZ7Lkzu4/17",
+      "kind": "record",
+      "form": "sha256-fn0BGYxMmWHlUkbMk9Qrow_CB959A3-CuW7efBgI2kM",
+      "at": "2026-06-04T16:50:56.337Z",
+      "values": {
+        "site_id": "QF-118",
+        "lithology": "quartzite",
+        "sample_type": "grab",
+        "fe_pct": 21,
+        "sio2_pct": 70.2,
+        "depth_m": 2,
+        "sampled": "2026-06-05"
+      },
+      "attachments": {},
+      "supersedes": null,
+      "sig": "3_HitfvDhj2TOEMVsRC_D0V_O-ozASza7e_q_PaCIHhf_tnKO0eZLsoVBVPwTSbn388KPg3cgsVMq2LVzjQtAw"
+    }
+  ]
+}
