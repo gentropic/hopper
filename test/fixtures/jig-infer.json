@@ -136,6 +136,21 @@
       ],
       "expectSeams": ["repeat"],
       "expectRepeat": { "name": "phone", "members": ["phone"] }
+    },
+    {
+      "name": "shared list — two columns with identical (yes/no) options",
+      "rows": [
+        { "site": "A", "wet": "yes", "irrigated": "no" },
+        { "site": "B", "wet": "no", "irrigated": "yes" },
+        { "site": "C", "wet": "yes", "irrigated": "yes" }
+      ],
+      "expectFields": [
+        { "name": "site", "fieldType": "text" },
+        { "name": "wet", "fieldType": "select" },
+        { "name": "irrigated", "fieldType": "select" }
+      ],
+      "expectSeams": ["share-list"],
+      "expectShareList": { "list": "yesno", "fields": ["wet", "irrigated"] }
     }
   ]
 }

@@ -140,6 +140,18 @@ function commonPrefixToken(words) {
   return p.replace(/[_.\- ]+$/, '');
 }
 
+// A name for a shared choice list: yes/no → "yesno"; else the common prefix of the
+// member field names; else "shared_list". Deduped against existing lists.
+function sharedListName(opts, names, choices) {
+  const labels = opts.map((o) => String(o.label).toLowerCase()).sort();
+  let base = (labels.length === 2 && labels.includes('yes') && labels.includes('no'))
+    ? 'yesno' : (commonPrefixToken(names) || 'shared_list');
+  base = slugifyHeader(base) || 'shared_list';
+  if (!choices[base]) return base;
+  let i = 2; while (choices[`${base}_${i}`]) i++;
+  return `${base}_${i}`;
+}
+
 // Detect repeat groups over the inferred columns. Returns ready-to-fold specs:
 // { name, label, children:[fieldDef], childChoices:{list:opts}, sources:[flatName], indices:[n] }.
 function detectRepeatGroups(colMeta, selectMax) {
@@ -264,6 +276,23 @@ export function inferTree(rows, opts = {}) {
   if (lat && lng) {
     seams.push({ type: 'geo-merge', field: [lat.name, lng.name], options: ['merge', 'keep'],
       recommend: 'merge', question: `Merge "${lat.header}" + "${lng.header}" into one geo point?` });
+  }
+
+  // Shared-list candidates: select fields with identical option sets → offer to point
+  // them at one shared `choices` list (XLSForm-style reuse) — the detect-then-ask seam.
+  const selFields = fields.filter((f) => f.fieldType === 'select' && f.props && f.props.list && choices[f.props.list]);
+  const bySig = new Map();
+  for (const f of selFields) {
+    const sig = JSON.stringify(choices[f.props.list].map((o) => [o.value, o.label]).sort());   // order-independent
+    (bySig.get(sig) || bySig.set(sig, []).get(sig)).push(f);
+  }
+  for (const fs of bySig.values()) {
+    if (fs.length < 2) continue;
+    const names = fs.map((f) => f.name);
+    const list = sharedListName(choices[fs[0].props.list], names, choices);
+    seams.push({ type: 'share-list', field: list, fields: names, list, recommend: 'share',
+      question: `${names.join(', ')} have the same options — use one shared list "${list}"?`,
+      spec: { fields: names, list } });
   }
 
   // Wide-format repeats: indexed column groups → a candidate `repeat` (offered as a

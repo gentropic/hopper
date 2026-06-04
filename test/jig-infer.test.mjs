@@ -43,6 +43,12 @@ for (const c of cases) {
       assert.ok(s, `seam ${t} present`);
       assert.equal(s.recommend, rec, `seam ${t} recommend`);
     }
+    if (c.expectShareList) {
+      const s = seams.find((x) => x.type === 'share-list');
+      assert.ok(s, 'share-list seam present');
+      assert.equal(s.list, c.expectShareList.list, 'shared list name');
+      assert.deepEqual(s.fields.slice().sort(), c.expectShareList.fields.slice().sort(), 'shared fields');
+    }
     if (c.expectRepeat) {
       const r = seams.find((s) => s.type === 'repeat');
       assert.ok(r, 'repeat seam present');

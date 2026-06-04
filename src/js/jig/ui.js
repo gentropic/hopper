@@ -14,7 +14,7 @@
 
 import { inferTree } from './infer.js';
 import { validateTree } from './validate.js';
-import { applyOverrides, findField, moveField, removeField, setLabel, setProps, setChoices, renameField, addField } from './edit.js';
+import { applyOverrides, findField, moveField, removeField, setLabel, setProps, setChoices, setFieldList, renameField, addField } from './edit.js';
 import { createForm } from '../renderer/state.js';
 import { renderForm } from '../renderer/render.js';
 import { treeToXlsform } from '../xlsform/index.js';
@@ -27,6 +27,20 @@ import * as capsule from '../../../vendor/capsule.js';
 const jel = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const seamKey = (s) => `${s.type}:${Array.isArray(s.field) ? s.field.join('+') : s.field}`;
 const SELECT_FAMILY = ['select', 'multiselect', 'rank'];
+
+// How many fields reference a given choice list (for the "shared ×N" marker).
+function countListUsers(tree, list) {
+  let n = 0;
+  (function w(a) { for (const f of a) { if (f.props && f.props.list === list) n++; if (f.children) w(f.children); } })(tree.fields || []);
+  return n;
+}
+// A free list name for "＋ new list" (forks a private copy off the shared one).
+function freshListName(tree, base) {
+  const ch = tree.choices || {};
+  if (!ch[base]) return base;
+  let i = 2; while (ch[`${base}_${i}`]) i++;
+  return `${base}_${i}`;
+}
 
 // Parse a comma/newline-separated list of option labels into §8 choices —
 // value = slugged label ([a-z0-9_-]+, deduped), label = the text as typed.
@@ -254,7 +268,7 @@ export function mountJig(root, opts = {}) {
 
   function seamRelevant(s) {
     if (s.type === 'identity' || s.type === 'required') return false;          // identity handled below; required = row checkboxes
-    if (s.type === 'geo-merge' || s.type === 'repeat') return true;            // stay visible — resolve in place, never vanish
+    if (s.type === 'geo-merge' || s.type === 'repeat' || s.type === 'share-list') return true;   // stay visible — resolve in place, never vanish
     return !!(s.field && findField(draft, s.field));
   }
 
@@ -303,6 +317,17 @@ export function mountJig(root, opts = {}) {
       } else {
         const b = jel('button', 'co-btn', 'Make a repeat group');
         b.addEventListener('click', () => { answered.add(seamKey(s)); draft = applyOverrides(draft, { repeats: [s.spec] }); rerender(); });
+        row.append(b);
+      }
+    } else if (s.type === 'share-list') {
+      const shared = s.fields.every((n) => { const l = findField(draft, n); return l && l.field.props && l.field.props.list === s.spec.list; });
+      if (shared) {
+        row.classList.add('jig-seam-done');
+        row.append(jel('div', 'jig-seg-done', `✓ Sharing list "${s.spec.list}" across ${s.fields.length} fields`));
+        q.append(doneMark());
+      } else {
+        const b = jel('button', 'co-btn', 'Use one shared list');
+        b.addEventListener('click', () => { answered.add(seamKey(s)); draft = applyOverrides(draft, { shareList: [s.spec] }); rerender(); });
         row.append(b);
       }
     }
@@ -362,10 +387,27 @@ export function mountJig(root, opts = {}) {
 
     row.append(ord, nameI, labelI, typeS, reqWrap, del);
     if (SELECT_FAMILY.includes(f.fieldType)) {
-      const list = (f.props && f.props.list) || f.name;
-      const opts = (draft.choices && draft.choices[list]) || [];
+      const curList = (f.props && f.props.list) || f.name;
+      const opts = (draft.choices && draft.choices[curList]) || [];
       const wrap = jel('div', 'jig-choices');
-      wrap.append(jel('span', 'jig-choices-lbl', 'choices'));
+
+      // which list this field uses — reuse another field's list to SHARE it
+      wrap.append(jel('span', 'jig-choices-lbl', 'list'));
+      const listSel = jel('select', 'jig-listsel');
+      const lists = Object.keys(draft.choices || {});
+      if (!lists.includes(curList)) lists.unshift(curList);
+      for (const ln of lists) listSel.append(new Option(ln, ln));
+      listSel.append(new Option('＋ new list', '__new__'));
+      listSel.value = curList;
+      listSel.addEventListener('change', () => {
+        const v = listSel.value === '__new__' ? freshListName(draft, f.name) : listSel.value;
+        draft = setFieldList(draft, f.name, v); rerender();
+      });
+      wrap.append(listSel);
+      const users = countListUsers(draft, curList);
+      if (users > 1) wrap.append(jel('span', 'jig-shared', `shared ×${users}`));
+
+      // the list's options (editing a shared list updates every field that uses it)
       const inp = jel('input', 'jig-choices-edit');
       inp.value = opts.map((o) => o.label).join(', ');
       inp.placeholder = 'comma-separated, e.g. itabirite, quartzite';

@@ -43,6 +43,12 @@ function allNames(tree) {
   return out;
 }
 
+function listInUse(tree, list) {
+  let used = false;
+  (function walk(arr) { for (const f of arr) { if (f.props && f.props.list === list) used = true; if (Array.isArray(f.children)) walk(f.children); } })(tree.fields || []);
+  return used;
+}
+
 // Append a field. opts.parent = container name (else top level); opts.index = position.
 export function addField(tree, field, opts = {}) {
   const t = cloneTree(tree);
@@ -109,6 +115,24 @@ export function setChoices(tree, name, choices) {
   t.choices = t.choices || {};
   if (choices && choices.length) t.choices[list] = choices.map((o) => ({ ...o }));
   else delete t.choices[list];
+  return t;
+}
+
+// Point a select-family field at a choice list (shared lists, XLSForm-style — many
+// fields → one `choices` entry). A new list is seeded from the field's current
+// options (so "new list" forks a private copy); the previous list is GC'd if no
+// other field still uses it.
+export function setFieldList(tree, name, listName) {
+  if (!IDENT_RE.test(listName)) throw new Error(`"${listName}" is not a valid list name`);
+  const t = cloneTree(tree);
+  const loc = findField(t, name);
+  if (!loc) return t;
+  loc.field.props = loc.field.props || {};
+  const old = loc.field.props.list;
+  loc.field.props.list = listName;
+  t.choices = t.choices || {};
+  if (!t.choices[listName]) t.choices[listName] = (old && t.choices[old]) ? t.choices[old].map((o) => ({ ...o })) : [];
+  if (old && old !== listName && !listInUse(t, old)) delete t.choices[old];
   return t;
 }
 
@@ -181,6 +205,12 @@ export function applyOverrides(tree, overrides = {}) {
     const ll = findField(t, lat);
     ll.field.name = into; ll.field.fieldType = 'geo'; ll.field.label = label; ll.field.props = ll.field.props || {};
     t = removeField(t, lng);
+  }
+
+  // share-list: point several select fields at one shared choice list (XLSForm-style)
+  for (const sl of overrides.shareList || []) {
+    if (!sl || !sl.list) continue;
+    for (const fname of sl.fields || []) if (findField(t, fname)) t = setFieldList(t, fname, sl.list);
   }
 
   // wide-format repeats: fold each spec's source columns into a repeat (applied

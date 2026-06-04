@@ -129,8 +129,18 @@ try {
   }, undefined, { timeout: 2000 });
   await page.locator('.jig-preview-host').getByRole('button', { name: '+ add' }).first().waitFor({ timeout: 3000 });
 
+  // shared lists: two columns with identical options → offer one shared list; folding
+  // points both selects at it (a "shared ×2" marker appears on the field rows)
+  await page.locator('.jig-paste').fill('site,wet,irrigated\nA,yes,no\nB,no,yes\nC,yes,yes');
+  await page.getByRole('button', { name: 'Infer form' }).click();
+  await page.locator('.jig-field').first().waitFor({ timeout: 3000 });
+  const slSeam = page.locator('.jig-seam', { hasText: 'shared list' });
+  await slSeam.getByRole('button', { name: 'Use one shared list' }).click();
+  await slSeam.locator('.jig-seg-done', { hasText: 'Sharing list' }).waitFor({ timeout: 2000 });
+  await page.locator('.jig-shared', { hasText: '2' }).first().waitFor({ timeout: 2000 });
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ jig smoke passed — infer types + seams + wide repeats, live preview, JSON + XLSForm export round-trip, seam toggle + rename through the engine');
+  console.log('✓ jig smoke passed — infer types + seams + wide repeats + shared lists, source view, live preview, JSON + XLSForm export round-trip');
   await shutdown();
 } catch (e) {
   console.error('✗ jig smoke FAILED:', e.message);

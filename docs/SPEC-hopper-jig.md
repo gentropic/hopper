@@ -75,6 +75,10 @@ control per *type* (it does not hand-code per field):
   `spec`, and `applyOverrides({ repeats: [spec] })` → `groupIntoRepeat` folds it (records
   are *not* reshaped — jig builds the form, not data). The fold resolves in place like
   `geo-merge`. Long-format (repeated parent-key rows) stays deferred (§5).
+- `share-list` — select fields with **identical option sets** → offer to point them at one
+  shared `choices` list (XLSForm-style reuse; a yes/no set is named `yesno`). `applyOverrides
+  ({ shareList: [{ fields, list }] })` → repeated `setFieldList`, GC-ing the orphaned
+  per-field lists. Resolves in place.
 
 The *seam interview is UI*; the engine only surfaces the questions. Answers are applied
 as **sparse overrides** (§3.4), so re-importing a changed table preserves prior answers
@@ -93,7 +97,7 @@ re-implementation — so a tree that validates is one the engine can actually ev
 ### 3.4 `edit.js` — pure `tree → tree`
 
 `addField` · `removeField` · `moveField` · `setProps` · `setLabel` · `setRule` /
-`removeRule` · `renameField` · `setChoices` · `groupIntoRepeat` · `applyOverrides` · `findField`. All immutable
+`removeRule` · `renameField` · `setChoices` · `setFieldList` · `groupIntoRepeat` · `applyOverrides` · `findField`. All immutable
 (`structuredClone`); the input is never mutated. `renameField` cascades the change
 through rule targets, `${refs}`, bare refs, and the leading segment of an aggregate
 path — while leaving string literals untouched (a single tokenizing pass mirroring the
@@ -114,7 +118,8 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
   fallback.
 - **Schema** — the seam interview (rendered from `seams`), an editable field list
   (rename / type / label / required / reorder / delete / add, plus an inline
-  comma-separated **choices editor** for select-family fields), and an identity picker.
+  comma-separated **choices editor** and a **list selector** to reuse/share a choice list
+  across fields, with a "shared ×N" marker), and an identity picker.
 - **Preview** — `renderForm(createForm(draft))`: the live WYSIWYG is the real renderer,
   for free.
 - **Source** — a **GUI ⇄ Source toggle** shows the §8 tree as editable **JSON**; *Apply*
@@ -130,9 +135,10 @@ Plain `.co-*` + a little `.jig-*` layout; structure first, Switchboard polish la
 
 **In (v1, built):** deterministic per-column inference + the seam interview; **wide-format
 `repeat` detection** (embedded + trailing indexed column groups → a foldable repeat, §3.2);
-an editable auto-form (incl. an inline comma-separated **choices editor** for
-select-family fields); live preview; export to JSON, XLSForm, and capsule share; the
-standalone surface and the embedded Build tab.
+an editable auto-form (incl. an inline **choices editor**, **shared choice lists** — a
+field can reuse another's list, plus an inference seam that merges identical-option
+columns — and a GUI ⇄ **Source (JSON)** view); live preview; export to JSON, XLSForm, and
+capsule share; the standalone surface and the embedded Build tab.
 
 **Deferred (named, not hidden):**
 - **`treeToYaml` (YAML emit)** — the editable **JSON** source view ships (§4); a YAML
@@ -173,7 +179,7 @@ trailing-multi, trailing-single, and a no-false-positive guard) + `test/jig-edit
 including a folded `repeat` — validates *and* survives `treeToXlsform → xlsformToTree`
 still contract-valid). Browser: `tools/smoke-jig.mjs` drives `jig.html` (infer → preview →
 JSON + `.xlsx` exports parsed back → edit the JSON **source** view and Apply → fold a wide
-repeat and see it in the preview), and the
+repeat, and share one list across two identical-option columns), and the
 collector smoke exercises the **Build** tab (paste → infer → Use this form → fillable).
 
 ## 7. Prior art & positioning

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inferTree } from '../src/js/jig/infer.js';
 import {
   addField, removeField, moveField, setProps, setLabel,
-  setRule, removeRule, renameField, applyOverrides, findField, groupIntoRepeat, setChoices,
+  setRule, removeRule, renameField, applyOverrides, findField, groupIntoRepeat, setChoices, setFieldList,
 } from '../src/js/jig/edit.js';
 import { validateTree } from '../src/js/jig/validate.js';
 import { treeToXlsform, xlsformToTree } from '../src/js/xlsform/index.js';
@@ -172,6 +172,43 @@ test('groupIntoRepeat / applyOverrides repeats — fold wide columns into a repe
   assert.equal(findField(t2, 'sample').field.children.length, 2);
   // direct call matches the override path
   assert.deepEqual(groupIntoRepeat(tree, rseam.spec).fields.map((f) => f.name), t.fields.map((f) => f.name));
+});
+
+test('setFieldList / shareList — point selects at one shared list, GC the old', () => {
+  const yn = () => [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }];
+  const t0 = {
+    type: 'form', meta: { id: 'f', mode: 'append' },
+    fields: [
+      { name: 'wet', fieldType: 'select', label: 'Wet', props: { list: 'wet' } },
+      { name: 'dry', fieldType: 'select', label: 'Dry', props: { list: 'dry' } },
+    ], choices: { wet: yn(), dry: yn() }, rules: [], views: [],
+  };
+
+  // direct: point dry at wet's list → dry's old list is GC'd, both valid
+  let t = setFieldList(t0, 'dry', 'wet');
+  assert.equal(findField(t, 'dry').field.props.list, 'wet');
+  assert.equal(t.choices.dry, undefined, 'orphaned list removed');
+  assert.equal(validateTree(t).ok, true);
+
+  // override: merge both onto a fresh shared "yesno"
+  const t2 = applyOverrides(t0, { shareList: [{ fields: ['wet', 'dry'], list: 'yesno' }] });
+  assert.equal(findField(t2, 'wet').field.props.list, 'yesno');
+  assert.equal(findField(t2, 'dry').field.props.list, 'yesno');
+  assert.equal(t2.choices.yesno.length, 2, 'shared list seeded');
+  assert.equal(t2.choices.wet, undefined); assert.equal(t2.choices.dry, undefined);
+  assert.equal(validateTree(t2).ok, true);
+
+  // editing the shared list via one field updates it for all
+  const t3 = setChoices(t2, 'wet', [{ value: 'y', label: 'Y' }, { value: 'n', label: 'N' }, { value: 'm', label: 'Maybe' }]);
+  assert.equal(t3.choices.yesno.length, 3);
+  assert.equal(findField(t3, 'dry').field.props.list, 'yesno', 'dry still references the shared list');
+
+  // XLSForm round-trip: list emitted once, both rows reference it; sharing survives
+  const xls = treeToXlsform(t2);
+  assert.equal(xls.choices.filter((r) => r.list_name === 'yesno').length, 2, 'shared list emitted once (2 options)');
+  assert.equal(xls.survey.filter((r) => String(r.type) === 'select_one yesno').length, 2, 'both fields reference it');
+  const back = xlsformToTree({ survey: xls.survey, choices: xls.choices, settings: xls.settings });
+  assert.equal(findField(back.tree, 'wet').field.props.list, findField(back.tree, 'dry').field.props.list, 'sharing survives the round-trip');
 });
 
 // ---- validateTree -----------------------------------------------------------

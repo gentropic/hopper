@@ -203,6 +203,8 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .jig-choices { flex-basis: 100%; font-size: .72rem; color: var(--au-muted); padding-left: 2.4rem; display: flex; align-items: center; gap: .4rem; }
 .jig-choices-lbl { flex: 0 0 auto; }
 .jig-choices-edit { flex: 1 1 auto; font: inherit; font-size: .76rem; padding: .25rem .4rem; border: 1px solid var(--au-border); border-radius: 5px; background: var(--au-bg); color: var(--au-text); }
+.jig-listsel { font: inherit; font-size: .74rem; padding: .2rem .3rem; border: 1px solid var(--au-border); border-radius: 5px; background: var(--au-bg); color: var(--au-text); max-width: 8rem; }
+.jig-shared { font-size: .68rem; color: #2E6FB0; font-family: var(--au-mono); }   /* info/selected accent */
 .jig-addfield { margin-top: .6rem; }
 .jig-preview-empty { color: var(--au-muted); font-size: .85rem; padding: 1rem; }
 .jig-modebar { display: flex; }
