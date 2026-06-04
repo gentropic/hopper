@@ -354,6 +354,39 @@ signaling as the cheap ε that reuses the handshake codec.** Chirp-as-**transpor
 (records over sound) is the bigger lift and waits for the joyful tail; the
 hardware carriers (§5.6 of the collector spec) stay tail.
 
+**Carriers are pluggable, by design — two stable seams (note).** Every carrier
+rides one of two transport-free seams, so adding one is an *adapter*, never a
+redesign: (a) the **`syncSession` channel** — `{ send, onMessage, onClose, close }`
+over string messages, for live point-to-point transports; and (b) the **bundle
+primitives** — `exportBundle`/`importBundle` (+ `missingBlobs`/`getBlob`/`saveBlob`),
+transport-free, for "publish-then-pull" carriers (the archive-file carrier already
+uses these directly). Trystero proved (a) is cheap (`trysteroChannel(room)` ≈ 30
+lines + tests, zero protocol change; `src/js/sync/trystero.js`).
+
+**Matrix is a wanted future carrier, and it fits *both* seams (note, not yet
+built).** Two ways, no design change either way:
+- **Room as a live channel** — `matrixChannel(client, roomId)`: `send` posts a room
+  event, `onMessage` reads the peer's timeline, `onClose` on leave. Structurally
+  identical to `trysteroChannel`; `syncSession` (values + blob lanes) runs unchanged.
+- **Room as a persistent append-only log** — Matrix's real edge over WebRTC/Trystero:
+  post your objects as events and go **offline**; a peer pulls them from the
+  homeserver later. This maps onto the grow-only-set merge *better* than the
+  synchronous handshake (`syncSession` assumes a live peer). It wants the thinner
+  publish/import primitive — i.e. `exportBundle`/`importBundle` over the room (seam
+  b), not `syncSession`. Still additive, because those primitives are already
+  transport-independent.
+
+Considerations to carry forward (none blocking, none requiring changes now):
+- **Event size** (~64 KiB on most homeservers) — already respected by values-first +
+  ~48 KB blob chunking; blobs could optionally use Matrix media (`mxc://`).
+- **Identity stays orthogonal** — the trust anchor is the Ed25519 *record signature*,
+  not the Matrix account (a transport credential only). Don't conflate them.
+- **Weight** — `matrix-js-sdk` (esp. with E2EE / Rust-crypto WASM) is heavy; likely an
+  **opt-in surface/build**, not baked into the base collector. (E2EE rooms are a *plus*
+  — transport privacy complementing signed/optionally-encrypted records.)
+- Same framing as Trystero: a **networked convenience carrier layered on the
+  no-network floor** (archive + WebRTC stay).
+
 ---
 
 ## 9. Corrections via tombstones, and the named seams
