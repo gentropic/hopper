@@ -567,4 +567,64 @@ instinct; it undercuts the single-file artifact.
 
 ---
 
+## 14. UI shell architecture: surfaces × targets, the equipment uniform, Works-citizenship by convergence
+
+**Decision (design — pre-build; extends §7).** Hopper is composed of host-agnostic
+**surfaces** mounted into **shells**, packaged as two **targets** — all wearing one
+GCU "equipment" visual uniform (Switchboard).
+
+- **Surfaces** (the units): **Collect** (Forms · Fill · Outbox · Settings) · **Build**
+  (jig) · **Analyze** (mill). Each is a pure `mount(ctx) → dispose` over an injected
+  context (root element + a store/VFS) — *not* hard-wired into one shell. This is what
+  we already have (`mountJig`/`mountMill`/`renderForm`).
+- **Targets** (what ships):
+  - **`collector.html`** — the **lean field cut**: bundles *Collect* only; offline-pure,
+    thumb-first, equipment-gray, glare-legible (honours §1 durability-first + the
+    lean-collector commitment in §7). The canonical phone tool.
+  - **`studio.html`** — the **full desk**: bundles *all three* surfaces in a Works-style
+    rail + tabs. Heavier (loom/plot). **It can also collect** — Collect is just one of its
+    surfaces — which is the §7 "a phone *can* run the mill, opt-in" idea generalised: the
+    collector is the studio **minus the heavy surfaces**, not a separate app.
+  - One shell codebase, **responsive** (bottom-nav narrow → rail+tabs wide); targets
+    differ only in *which surfaces they carry*. Dissolves "lean vs cohesive": one system,
+    two cuts.
+
+**The visual uniform = Switchboard** (the real design system, `../auditable/ext/switchboard`,
+vendorable as CSS): three-layer tokens (`--sw-*` swatches → `--au-*` semantic → optional
+`--ui-*`), light "equipment gray" / dark "basalt", the six accents as **semantics not
+ambience** (orange=action·teal=info·green=go·amber=caution·red=fault·indigo=selected),
+mono (Space Mono) for quantities/identity, sans (Barlow) for prose, **panels** as the unit
+(mono-uppercase header-tag + body), a top **identity band** and a bottom **instrument
+bar**. Hopper's current `--au-*` placeholders + `.co-*/.jig-*/.mill-*` classes are the
+right *shape*; Phase 1 = vendor the real tokens + remap hardcoded hexes + pre-paint theme;
+Phase 2 = panel/component classes. (Reference dialect for the field app: **RelayKVM** —
+light, panel-grid, accent-coded, responsive.)
+
+**Works-citizenship comes free by convergence.** The Works **inline-surface contract**
+(`auditable/works/SURFACES.md` §12.5) is `mount(ctx) → dispose`, `ctx = { root, bus, tab,
+vfs, home }` — *the same shape* as Hopper's own in-process surface model. So we don't
+choose between "Hopper's way" and "Works' way"; for the privileged-inline tier they are
+the same contract. The disciplines that make it free are ones we want anyway: (1) surfaces
+as `mount(ctx) → dispose`; (2) **storage behind the VFS seam** (`@gcu/vfs`) — own
+`IDBBackend` standalone, the workspace VFS (`AbusBackend`) in Works (the `@gcu/dock`
+adaptive-host idea); (3) `title`/`dirty`/`flush` hooks that map to the Surface signals.
+
+**What we do NOT do (and why):**
+- **No iframe + A-Bus *inside* Hopper.** Adopt Works' *organization* (rail/tabs/panels),
+  not its *transport*. Same-document panels over MessagePort RPC is pure overhead; internal
+  surfaces are direct in-process mounts.
+- **No Works adapter yet.** A-Bus is `@gcu/abus@0.1.2` (early), and crucially the **Collect
+  surface can't be a *sandboxed* Works iframe** — a `blob:file://` iframe **blocks
+  `getUserMedia` + IndexedDB** (SURFACES.md §8.2/§10/§12.1), which Collect lives on. It needs
+  the **privileged-inline tier (§12), which is design-only / not yet built** (Atalaia is its
+  planned first consumer for the *same* camera/IDB reasons — Hopper is a natural second).
+  jig/mill could be sandboxed iframe surfaces today; Collect waits for inline. So full
+  bundling-into-Works is deferred — but a **thin boot-time A-Bus adapter** away once the
+  tier ships, *because* we kept the seams (1)–(3) clean.
+
+**Net:** build the studio with the in-process `mount(ctx) → dispose` surface contract +
+vfs seam now (right for us regardless); Works-citizenship is then additive, not a rewrite.
+
+---
+
 *Geoscientific Chaos Union · CC0 · 2026 · single-file*
