@@ -1,0 +1,52 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>mill spike</title>
+<style>body{font-family:system-ui;margin:1rem}#grid{width:600px;height:260px;border:1px solid #444}</style>
+</head><body>
+<h3>mill spike — loom grid + plot chart over a real runQuery result</h3>
+<div id="grid"></div>
+<div id="chart"></div>
+<script type="module">
+// Imports are served by tools/serve.mjs from the repo root: the mill engine
+// (which is dependency-free over rules/eval.js) + the vendored display libs.
+import { recordsToRows } from '/src/js/mill/table.js';
+import { runQuery } from '/src/js/mill/query.js';
+import { createGrid, createMemoryProvider } from '/vendor/loom.js';
+import { subplots } from '/vendor/plot.js';
+
+const FORM = { type: 'form', meta: { id: 'qf' }, fields: [
+  { name: 'site_id', fieldType: 'text', label: 'Site' },
+  { name: 'lithology', fieldType: 'select', label: 'Lithology' },
+  { name: 'fe_pct', fieldType: 'number', label: 'Fe %' },
+] };
+const RECS = [
+  { values: { site_id: 'QF-1', lithology: 'itabirite', fe_pct: 58 } },
+  { values: { site_id: 'QF-2', lithology: 'quartzite', fe_pct: 41 } },
+  { values: { site_id: 'QF-3', lithology: 'itabirite', fe_pct: 60 } },
+  { values: { site_id: 'QF-4', lithology: 'itabirite', fe_pct: 55 } },
+];
+try {
+  const t = recordsToRows(RECS, FORM);
+  const res = runQuery({
+    groupBy: 'lithology',
+    aggregates: [{ op: 'mean', field: 'fe_pct', as: 'avg_fe' }, { op: 'count', as: 'n' }],
+    sort: { by: 'avg_fe', dir: 'desc' },
+  }, t);
+
+  // loom grid over the result table (provider expects columns + 2D rows)
+  const provider = createMemoryProvider({
+    columns: res.columns.map((c) => ({ name: c.label || c.name })),
+    rows: res.rows.map((r) => res.columns.map((c) => r[c.name])),
+  });
+  createGrid(document.getElementById('grid'), provider, { theme: 'dark' });
+
+  // plot bar chart of mean Fe% by lithology
+  const { fig, ax } = subplots(1, 1);
+  ax.bar(res.rows.map((r) => r.lithology), res.rows.map((r) => r.avg_fe));
+  document.getElementById('chart').append(fig.show());   // show() renders + returns the canvas (not fig.canvas — README is stale)
+
+  window.__spike = { ok: true, groups: res.rows.length };
+} catch (e) {
+  window.__spike = { ok: false, err: String((e && e.stack) || e) };
+}
+</script>
+</body></html>

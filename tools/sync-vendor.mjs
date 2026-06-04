@@ -24,6 +24,8 @@ const MAP = [
   [resolve(SIB, 'auditable/ext/yaml/index.js'), 'yaml.js'],        // @gcu/yaml — form source parse
   [resolve(SIB, 'capsule/dist/capsule.js'), 'capsule.js'],         // @gcu/capsule — SELF-CONTAINED ESM bundle
   [resolve(SIB, 'capsule/vendor/qrcodegen.js'), 'qrcodegen.js'],   // Nayuki QR gen (MIT) — classic global script, FLAT-inlined
+  [resolve(SIB, 'auditable/ext/loom/index.js'), 'loom.js'],        // @gcu/loom — virtualized canvas grid (mill table surface)
+  [resolve(SIB, 'auditable/ext/plot/index.js'), 'plot.js'],        // @gcu/plot — matplotlib-style canvas charts (mill charts)
 ];
 
 mkdirSync(resolve(ROOT, 'vendor'), { recursive: true });
