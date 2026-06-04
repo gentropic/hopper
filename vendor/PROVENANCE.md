@@ -23,6 +23,7 @@ bundler) was rejected to preserve the single-file, zero-supply-chain ethos
 | `ggwave.*`     | upstream `ggwave` (MIT, WASM)     | data-over-sound sync fallback (bundled, §5.5) |
 | `sheetjs.*`    | SheetJS (community build)         | xlsx import/export for the converter |
 | `noble-ed25519.js` | `@noble/ed25519` (MIT, paulmillr) | Ed25519 **fallback** when the browser lacks Web Crypto Ed25519 |
+| `trystero.js`  | `trystero` (npm, MIT)             | room-based P2P sync carrier (WebRTC + public signaling) — `joinRoom` → a channel for syncSession (**pending fetch**) |
 
 ## Ed25519 fallback (noble) — vendored ✓
 
@@ -75,6 +76,29 @@ LICENSE in `vendor/sheetjs.LICENSE`. The `.xlsx` form source (ODK on-ramp).
 **Bundled** (namespace-wrapped) → the collector is ~1.1 MB. This is the *correct*
 call, not debt: bundling keeps the single-file artifact self-contained, which is
 load-bearing for Hopper. Do **not** lazy-load/code-split it — see DECISIONS §13.
+
+## Trystero (P2P sync carrier) — pending vendor
+
+`src/js/sync/trystero.js` is the **channel adapter** (`trysteroChannel(room)` → the
+syncSession `{send,onMessage,onClose,close}` channel). It is dependency-free and
+node-tested (`test/sync-trystero.test.mjs` runs the real merge + blob lane over a mock
+room), because it takes an **injected** room — so it builds and tests without the bundle.
+Shipping the live carrier needs the bundle vendored:
+
+| field | value |
+|-------|-------|
+| package | `trystero` (Dan Motzenbecker), MIT |
+| version | **pin at fetch** (record version + local sha256 here, like noble) |
+| strategy | one signaling bundle — **Nostr** or **MQTT** (public relays; BitTorrent trackers are flakier). Entry e.g. `trystero/nostr` |
+| source | `npm pack trystero@<ver>` → copy the chosen strategy's built ESM → `vendor/trystero.js` |
+| exports | `joinRoom(config, roomId)`, `selfId`, … |
+
+Then wire it: manifest `import * as trystero from '../../vendor/trystero.js'`
+(namespace-wrapped, like sheetjs/capsule); a `joinSyncRoom(roomId)` helper =
+`trysteroChannel(trystero.joinRoom({ appId: 'gentropic-hopper' }, roomId))`; and an Outbox
+**"Join a sync room"** entry beside the QR handshake. **Caveat (state it plainly):**
+Trystero is a *convenience* carrier over public signaling, layered on the no-network floor
+— archive import + WebRTC stay (DECISIONS §2 carrier order).
 
 Each file added here gets a row in `vendor-licenses.json` (to be created) with
 its license + source commit, mirroring `weir/vendor-licenses.json`.
