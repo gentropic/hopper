@@ -241,7 +241,7 @@ third-party host you don't fully trust).
 
 ---
 
-## 6. The rule layer is a small *total* expression language — `soft` is exiled to the mill
+## 6. The rule layer is a small *total* expression language — also the mill's shareable query primary; `soft`/AIR are the mill's optional local power lane
 
 **Decision.** Drop `soft` from the collector's rule layer. The logic layer
 (`relevant` / `constrain` / `require` / `calculate` / `filter` / `show`) is a
@@ -280,11 +280,39 @@ code), and a builder picker may *display* "is greater than" while serializing
 `>`. The full grammar is **`SPEC-hopper-rules.md`** (the bounded-new-component
 spec; closes the SPEC-hopper §7 "rule-expression runtime" parked decision).
 
-**Where `soft` / AIR *do* belong:** the **mill query layer** (later) — `take
-from <form> keep where … group by … total …` over the append-only union. There
-the English-keyword ergonomics and real compilation earn their keep. Two
-languages, two jobs: a tiny total **rule** calculus in the collector, a richer
-**query** language in the mill.
+**The mill query layer splits along the *total / shareable* boundary** (this
+refines the first-draft "`soft` → the mill query language" — `soft` is now **one**
+optional local frontend, not the mill's primary). Two stacks, one boundary:
+
+- **Primary — the same total calculus, generalized.** The mill's filters and
+  computed columns **reuse the collector's total expression calculus** — its
+  `count`/`total`/`mean`/`min`/`max` generalized from a repeat's instances to a
+  group's rows — driving a **GUI query builder** (pick form → filter → group-by →
+  aggregate → sort; no syntax for the common case). Because it is total, a saved
+  **analysis is shareable data**: a `{ source, filter, groupBy, aggregates, chart }`
+  description that travels in a capsule like a form does and is **safe to open**
+  (totality *is* the boundary — same guarantee as forms). This is the load-bearing
+  layer, and the only shareable one.
+- **Local power lane — the whole GCU stack over AIR, not just `soft`.** Because
+  `soft` / `adder` (Python) / JS/TS all lower to **AIR**, the power lane is "any
+  **AIR-targeting frontend**," wired behind a single AIR-eval seam (adding a
+  language = adding a frontend, not a new evaluator). `atra` / `scitra` are the
+  heavy-numeric *backends* (kriging, stats), distinct from the query frontends.
+  All of these are **local-and-trusted only** — you authored them or trust the
+  source; they run on your machine over your data and never cross the "open a
+  stranger's thing" line, so full expressiveness costs no safety.
+
+**Shareability is gated on *totality*, not language name.** A power-lane query is
+local because it's non-total, not because it's "soft." (Future, flagged
+speculative: AIR is an analyzable IR, so a *total-AIR profile* could one day
+certify a vetted JS/`soft` query as safe-to-share — making the boundary an IR
+property, not a brand.)
+
+**v1 build:** total calculus + GUI as the primary/shareable layer, plus an
+AIR-eval seam with **one** frontend wired first (AIR-optimized JS, or `soft` for
+the keyword nicety); other frontends are additive. Two stacks, one job each:
+a tiny total **rule** calculus in the collector and as the mill's shareable query
+primary; richer **AIR frontends** as the mill's local power lane.
 
 ---
 
@@ -446,7 +474,7 @@ and inline updates for the items below; `SPEC-hopper-rules` and
 | §1 durability mechanism; §8 two-lane state; storage readout | **SPEC-hopper-collector** §4–5 |
 | §2 git-shaped G-Set; §3 git-compatible-not-dependent; §4 per-author layout; §9 tombstones | **SPEC-hopper-records.md** (drafted ✓ — the object model) + folds into **SPEC-hopper-collector** §4–5 |
 | §5 private-by-default principle | **SPEC-hopper** §1 (new commitment) + collector §6 (deploy) |
-| §6 total-expression rule language; `soft`→mill | **SPEC-hopper-rules.md** (drafted ✓ — folds into **SPEC-hopper-form** §6); closes SPEC-hopper §7 "rule-expression runtime" |
+| §6 total-expression rule language; total calculus = mill query primary, `soft`/AIR = mill local power lane | **SPEC-hopper-rules.md** (drafted ✓ — folds into **SPEC-hopper-form** §6); closes SPEC-hopper §7 "rule-expression runtime" |
 | §7 surfaces-not-apps; collector lean / mill sibling | **SPEC-hopper** §3 (component map) + collector §2 |
 | §9 seams (time, privacy, flat-forms, served-not-file) | scattered: collector §4/§6, form §12, hopper §5 |
 
