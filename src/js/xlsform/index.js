@@ -99,6 +99,43 @@ export function softToXpath(s, self) {
 
 // ---- XLSForm → tree ----------------------------------------------------------
 
+// ---- identifier normalization (import) --------------------------------------
+// XLSForm names are case-sensitive XML names ([A-Za-z0-9_.-], any case); Hopper
+// identifiers are [a-z0-9_-], letter/underscore-start (what the rule calculus
+// tokenizes). So `SiteID` / `Fe.Pct` are legal XLSForm but un-tokenizable here —
+// without this, imported relevant/constraint/calculate would parse-fail and
+// silently degrade to inert. Normalize field names and rewrite every reference.
+function slugXlsfId(s) {
+  let x = String(s).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+  if (/^[0-9-]/.test(x)) x = '_' + x;                 // bare refs need a letter/_ start
+  return x || 'field';
+}
+function rewriteXlsfRefs(expr, map) {
+  if (typeof expr !== 'string' || !expr || !map.size) return expr;
+  let out = expr;
+  for (const [orig, slug] of map) out = out.split('${' + orig + '}').join('${' + slug + '}');   // ${Name} (incl. dotted) in passthroughs
+  return out.replace(/("[^"]*")|([A-Za-z_][A-Za-z0-9_-]*)/g, (m, str, word) => (word && map.has(word) ? map.get(word) : m));  // bare refs
+}
+function normalizeXlsfIds(tree, warnings) {
+  const map = new Map(), used = new Set();
+  (function walk(fields) {
+    for (const f of fields || []) {
+      let s = slugXlsfId(f.name);
+      if (used.has(s)) { let i = 2; while (used.has(`${s}_${i}`)) i++; s = `${s}_${i}`; }
+      used.add(s);
+      if (s !== f.name) { map.set(f.name, s); warnings.push(`name "${f.name}" → "${s}" (normalized for the rule language)`); }
+      f.name = s;
+      if (Array.isArray(f.children)) walk(f.children);
+    }
+  })(tree.fields);
+  if (tree.meta && tree.meta.id) tree.meta.id = slugXlsfId(tree.meta.id);
+  for (const r of tree.rules || []) {
+    if (map.has(r.target)) r.target = map.get(r.target);
+    if (r.expr) r.expr = rewriteXlsfRefs(r.expr, map);
+  }
+  return tree;
+}
+
 export function xlsformToTree({ survey = [], choices = [], settings = [] } = {}) {
   const warnings = [];
   const set = settings[0] || {};
@@ -167,7 +204,9 @@ export function xlsformToTree({ survey = [], choices = [], settings = [] } = {})
     const ln = r.list_name; if (!ln) continue;
     (ch[ln] = ch[ln] || []).push({ value: String(r.name), label: String(r.label != null ? r.label : r.name) });
   }
-  return { tree: { type: 'form', meta, fields, choices: ch, rules, views: [] }, warnings };
+  const tree = { type: 'form', meta, fields, choices: ch, rules, views: [] };
+  normalizeXlsfIds(tree, warnings);                   // slug non-conforming names + rewrite refs (so rules evaluate)
+  return { tree, warnings };
 }
 
 // ---- tree → XLSForm ----------------------------------------------------------
