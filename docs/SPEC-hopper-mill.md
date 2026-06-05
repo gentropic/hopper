@@ -92,17 +92,18 @@ shared analysis can't break on a rename/translation.
 
 ## 6. Scope
 **In (v1, built):** standalone surface; open-archive → resolved union; the query builder
-(filter · group · aggregates) over the total calculus + functions; the filter aid (chips +
-backtick-by-label); loom grid + plot bar chart; **save/share an analysis** as a `q:`
-capsule (QR + link; opens by link or paste, applies to the matching form); the
-records→table + query engine, node-tested.
+(filter · **computed columns** · group · aggregates · **sort**) over the total calculus +
+functions; the filter aid (chips + backtick-by-label); loom grid + plot bar chart;
+**save/share an analysis** as a `q:` capsule (QR + link; opens by link or paste, applies to
+the matching form — the full query, computed/sort included, travels); the records→table +
+query engine, node-tested. (Pipeline order: filter → computed → group/aggregate → sort, so a
+filter sees base columns and group/aggregate/sort can reference computed ones.)
 
 **Deferred (named, not hidden):**
 - **A textual query syntax** for the pipeline (today the *expressions* are textual, the
   *pipeline* is GUI-built). If added, an XLSForm-anchored total extension keeps it
   shareable; `soft` is the alternative power lane.
-- **Computed-column UI** (the engine supports `computed`; the builder doesn't expose it yet),
-  **sort UI** (engine supports `sort`), richer charts (histogram/scatter — only bar now),
+- Richer charts (histogram/scatter — only bar now),
   `yearmonth()` / date arithmetic, the local **power lane** (soft/AIR), `strata` overlay
   edits (the mill feeds loom directly, so strata is skipped), and a **collector → mill**
   in-app handoff / "Mill tab."

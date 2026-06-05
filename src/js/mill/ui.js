@@ -17,6 +17,8 @@ import * as capsule from '../../../vendor/capsule.js';
 
 const mel = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const AGG_OPS = ['count', 'sum', 'mean', 'min', 'max'];
+const aggKey = (a) => a.as || `${a.op}_${a.field || 'rows'}`;                  // an aggregate's output column name (mirrors runQuery)
+const slugName = (s) => String(s).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
 
 // Filter aid: `` `Label or name` `` → the stable field NAME (resolved on commit, so the
 // stored/shareable expression stays name-only). Unknown → strip backticks, leave text
@@ -121,7 +123,10 @@ export async function mountMill(ctx) {
   function renderBuilder() {
     builder.replaceChildren(mel('div', 'mill-pane-h', 'Query'));
     if (!current) return;
-    const cols = current.table.columns;
+    if (!query.computed) query.computed = [];
+    const cols = current.table.columns;                            // base columns — filter runs before computed
+    const computedCols = query.computed.map((c) => ({ name: c.name, label: c.label || c.name, fieldType: 'calc' }));
+    const groupAggCols = cols.concat(computedCols);                // group/aggregate/sort run after computed
 
     // filter — a total-calculus predicate (blank = all rows)
     const frow = mel('div', 'mill-row');
@@ -149,21 +154,34 @@ export async function mountMill(ctx) {
     }
     builder.append(frow, filterErr, chips, mel('div', 'mill-hint', 'tip: type `Label` (backticks) to reference a field by its label'));
 
-    // group by
+    // computed columns — a total-calculus scalar per row (runs AFTER filter, so a
+    // filter can't see them; group/aggregate/sort below can). Travels in the capsule.
+    const comps = mel('div', 'mill-computeds');
+    comps.append(mel('label', 'mill-lbl', 'Computed'));
+    query.computed.forEach((c, i) => comps.append(computedRow(c, i, cols)));
+    const addc = mel('button', 'co-btn co-ghost mill-addcomp', '+ computed');
+    addc.addEventListener('click', () => {
+      query.computed = query.computed.concat({ name: `calc_${query.computed.length + 1}`, expr: '' });
+      renderBuilder(); run();
+    });
+    comps.append(addc);
+    builder.append(comps);
+
+    // group by (over base + computed columns)
     const grow = mel('div', 'mill-row');
     grow.append(mel('label', 'mill-lbl', 'Group by'));
     const gsel = mel('select', 'mill-groupby');
     gsel.append(new Option('— none —', ''));
-    for (const c of cols) gsel.append(new Option(c.label || c.name, c.name));
+    for (const c of groupAggCols) gsel.append(new Option(c.label || c.name, c.name));
     gsel.value = query.groupBy || '';
-    gsel.addEventListener('change', () => { query.groupBy = gsel.value || undefined; run(); });
+    gsel.addEventListener('change', () => { query.groupBy = gsel.value || undefined; renderBuilder(); run(); });
     grow.append(gsel);
     builder.append(grow);
 
     // aggregates
     const aggs = mel('div', 'mill-aggs');
     aggs.append(mel('label', 'mill-lbl', 'Aggregates'));
-    (query.aggregates || []).forEach((a, i) => aggs.append(aggRow(a, i, cols)));
+    (query.aggregates || []).forEach((a, i) => aggs.append(aggRow(a, i, groupAggCols)));
     const add = mel('button', 'co-btn co-ghost mill-addagg', '+ aggregate');
     add.addEventListener('click', () => {
       query.aggregates = (query.aggregates || []).concat({ op: 'count', as: `count_${(query.aggregates || []).length + 1}` });
@@ -171,6 +189,69 @@ export async function mountMill(ctx) {
     });
     aggs.append(add);
     builder.append(aggs);
+
+    // sort — over the OUTPUT columns (projection, or group/aggregate result)
+    const out = outputColumns();
+    const srow = mel('div', 'mill-row mill-sort');
+    srow.append(mel('label', 'mill-lbl', 'Sort by'));
+    const ssel = mel('select', 'mill-sortby');
+    ssel.append(new Option('— none —', ''));
+    for (const c of out) ssel.append(new Option(c.label || c.name, c.name));
+    ssel.value = (query.sort && query.sort.by) || '';
+    if (query.sort && ssel.value !== query.sort.by) query.sort = undefined;   // sort column no longer exists → clear
+    const sdir = mel('button', 'co-btn co-ghost mill-sortdir');
+    const dirText = () => (query.sort && query.sort.dir === 'desc' ? '↓ desc' : '↑ asc');
+    sdir.textContent = dirText(); sdir.disabled = !(query.sort && query.sort.by);
+    ssel.addEventListener('change', () => {
+      query.sort = ssel.value ? { by: ssel.value, dir: (query.sort && query.sort.dir) || 'asc' } : undefined;
+      sdir.disabled = !ssel.value; sdir.textContent = dirText(); run();
+    });
+    sdir.addEventListener('click', () => {
+      if (!query.sort || !query.sort.by) return;
+      query.sort.dir = query.sort.dir === 'desc' ? 'asc' : 'desc';
+      sdir.textContent = dirText(); run();
+    });
+    srow.append(ssel, sdir);
+    builder.append(srow);
+  }
+
+  // The result columns for the current query — mirrors runQuery's column logic so
+  // the Sort dropdown only offers columns that exist in the output.
+  function outputColumns() {
+    if (!current) return [];
+    const baseCols = current.table.columns;
+    const computedCols = (query.computed || []).map((c) => ({ name: c.name, label: c.label || c.name }));
+    if (query.groupBy) {
+      const aggs = (query.aggregates && query.aggregates.length) ? query.aggregates : [{ op: 'count', as: 'count' }];
+      const g = baseCols.concat(computedCols).find((x) => x.name === query.groupBy);
+      return [{ name: query.groupBy, label: (g && g.label) || query.groupBy }]
+        .concat(aggs.map((a) => ({ name: aggKey(a), label: a.label || aggKey(a) })));
+    }
+    if (query.aggregates && query.aggregates.length) return query.aggregates.map((a) => ({ name: aggKey(a), label: a.label || aggKey(a) }));
+    return baseCols.concat(computedCols);
+  }
+
+  // A computed-column editor row: name + total-calculus expression + delete.
+  function computedRow(c, i, baseCols) {
+    const row = mel('div', 'mill-row mill-comprow');
+    const nameIn = mel('input', 'mill-compname'); nameIn.placeholder = 'name'; nameIn.value = c.name || '';
+    const exprIn = mel('input', 'mill-compexpr'); exprIn.placeholder = 'expression  ·  e.g. fe_pct * 2'; exprIn.value = c.expr || '';
+    nameIn.addEventListener('change', () => {
+      c.name = slugName(nameIn.value) || `calc_${i + 1}`;
+      if (nameIn.value !== c.name) nameIn.value = c.name;
+      c.label = c.name;
+      renderBuilder(); run();                                      // name change shifts downstream column lists
+    });
+    exprIn.addEventListener('change', () => {
+      const resolved = resolveBacktickRefs(exprIn.value, baseCols);
+      if (resolved !== exprIn.value) exprIn.value = resolved;
+      c.expr = exprIn.value.trim();
+      run();
+    });
+    const del = mel('button', 'co-btn co-ghost mill-mini', '✕');
+    del.addEventListener('click', () => { query.computed.splice(i, 1); renderBuilder(); run(); });
+    row.append(nameIn, exprIn, del);
+    return row;
   }
 
   function aggRow(a, i, cols) {

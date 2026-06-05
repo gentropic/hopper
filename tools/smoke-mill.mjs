@@ -72,6 +72,41 @@ try {
   await page.locator('.mill-filter').blur();
   await rowsIs(4);
 
+  // computed column — a total-calculus scalar per row (runs after filter). Name it,
+  // give it an expression; it becomes a real output column, selectable downstream.
+  await page.getByRole('button', { name: '+ computed' }).click();
+  await page.locator('.mill-compname').last().fill('fe_x2');
+  await page.locator('.mill-compname').last().blur();
+  await page.locator('.mill-compexpr').last().fill('fe_pct * 2');
+  await page.locator('.mill-compexpr').last().blur();
+  await rowsIs(4);                                                  // projection still 4 rows, now with fe_x2
+  assert.equal(await page.locator('.mill-filter-err').textContent(), '', 'computed expression parsed cleanly');
+  await page.waitForFunction(() => [...document.querySelectorAll('.mill-sortby option')].some((o) => o.value === 'fe_x2'), undefined, { timeout: 3000 });
+
+  // sort by the computed column, descending (asc → desc via the dir toggle)
+  await page.locator('.mill-sortby').selectOption('fe_x2');
+  await page.locator('.mill-sortdir').click();
+  await rowsIs(4);
+
+  // computed + sort travel in the shared-analysis capsule (the grid is canvas, so we
+  // assert the durable serialized query rather than read cells off the canvas)
+  await page.getByRole('button', { name: 'Share analysis' }).click();
+  await page.locator('.co-share .co-qr').waitFor({ timeout: 3000 });
+  const compUrl = await page.locator('.co-share-url').inputValue();
+  const decoded = await page.evaluate(async (u) => {
+    const bytes = await capsule.resolve(capsule.fragmentDecode(u.slice(u.indexOf('#') + 1)));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }, compUrl);
+  assert.equal(decoded.query.computed?.[0]?.name, 'fe_x2', 'computed column travels in the analysis capsule');
+  assert.equal(decoded.query.computed?.[0]?.expr, 'fe_pct * 2', 'computed expression travels');
+  assert.deepEqual(decoded.query.sort, { by: 'fe_x2', dir: 'desc' }, 'sort travels in the analysis capsule');
+  await page.locator('.co-share').getByRole('button', { name: 'Close' }).click();
+
+  // remove the computed column → its dependent sort auto-clears (column no longer exists)
+  await page.locator('.mill-comprow .mill-mini').click();
+  await rowsIs(4);
+  assert.equal(await page.locator('.mill-sortby').inputValue(), '', 'sort cleared when its computed column was removed');
+
   // group by lithology → 2 groups (default count); add a mean(Fe %) aggregate → bar chart
   await page.locator('.mill-groupby').selectOption('lithology');
   await rowsIs(2);
@@ -104,7 +139,7 @@ try {
   assert.deepEqual(millShapes, ['function', 'function'], 'mill exposes bootSurface + mountMill(ctx)');
 
   assert.deepEqual(errs, [], 'no page errors');
-  console.log('✓ mill smoke — open archive → query builder (filter/group/aggregate) → grid + chart → share analysis → reopen via link applies it + surface contract');
+  console.log('✓ mill smoke — open archive → query builder (filter/computed/group/aggregate/sort) → grid + chart → share analysis (computed+sort travel) → reopen via link applies it + surface contract');
   await browser.close(); await srv.close();
 } catch (e) {
   console.error('✗ mill smoke FAILED:', e.message);

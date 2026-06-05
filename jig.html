@@ -305,6 +305,16 @@ body { background: var(--au-bg); color: var(--au-text); font-family: var(--au-sa
 .mill-fieldchip { font: inherit; font-size: .72rem; padding: .15rem .5rem; border: 1px solid var(--au-border); border-radius: 999px; background: var(--au-bg); color: var(--au-text); cursor: pointer; }
 .mill-fieldchip:hover { border-color: var(--au-action); color: var(--au-action); }
 .mill-hint { font-size: .7rem; color: var(--au-muted); margin-bottom: .5rem; }
+.mill-computeds { margin-top: .6rem; }
+.mill-comprow { gap: .35rem; }
+.mill-addcomp { margin-top: .3rem; }
+.mill-compname, .mill-compexpr, .mill-sortby, .mill-sortdir { font: inherit; font-size: .82rem; padding: .3rem .4rem; border: 1px solid var(--au-border); border-radius: 5px; background: var(--au-bg); color: var(--au-text); }
+.mill-compname { flex: 0 0 6rem; font-family: var(--au-mono); }
+.mill-compexpr { flex: 1 1 8rem; min-width: 6rem; font-family: var(--au-mono); }
+.mill-sort { margin-top: .6rem; }
+.mill-sortby { flex: 1 1 auto; }
+.mill-sortdir { flex: 0 0 auto; cursor: pointer; }
+.mill-sortdir:disabled { opacity: .5; cursor: default; }
 .co-btn.co-ghost { background: var(--au-surface); color: var(--au-text); border: 1px solid var(--au-border); }
 .co-btn:disabled { opacity: .5; cursor: default; }
 
