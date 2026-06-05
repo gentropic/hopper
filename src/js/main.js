@@ -41,5 +41,6 @@ import './jig/infer.js';         // → inferTree: a table → a flat §8 tree +
 import './jig/validate.js';      // → validateTree, IDENT_RE: the contract guardrail
 import './jig/edit.js';          // → pure tree→tree edits + applyOverrides
 import './jig/ui.js';            // → mountJig: the schema-from-example builder (embedded as a tab)
+import './surface/contract.js';  // → bootSurface: the mount(ctx) → dispose host adapter (DECISIONS §14)
 import './collector/shell.js';   // → mountShell: Forms · Build · Outbox · Settings around the renderer
 import './boot.js';              // creates the store, mounts the shell, registers the SW

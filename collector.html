@@ -2638,10 +2638,14 @@ return { signal, computed, effect, batch, h, each, render };
 // (qr_code only). Browser-only; callers gate on BarcodeDetector availability.
 //
 // Open the camera, poll each frame, fire onCode on the first hit then tear down.
-// Returns a handle so the caller can stop a running scan; onEnd fires on any
-// termination (hit, manual stop, or failure) so the UI can reset. `formats` is an
-// optional BarcodeDetector format allow-list (e.g. ['qr_code']); omit for all.
-async function startBarcodeScan(box, btn, onCode, onEnd, formats) {
+// Returns the `{ stop }` handle **synchronously** so a caller can stop the scan the
+// instant it starts it — even before the camera finishes acquiring (a fast
+// navigate-away / surface dispose must not leak a live stream). The async camera
+// work runs in a detached task that re-checks `ended` after each await, so a stop
+// that lands mid-acquisition still releases the freshly-opened tracks. `onEnd`
+// fires on any termination (hit, manual stop, failure). `formats` is an optional
+// BarcodeDetector format allow-list (e.g. ['qr_code']); omit for all.
+function startBarcodeScan(box, btn, onCode, onEnd, formats) {
   let stream = null, raf = 0, ended = false;
   const label = btn.textContent;
   const video = document.createElement('video'); video.className = 'hf-scan-video';
@@ -2652,18 +2656,22 @@ async function startBarcodeScan(box, btn, onCode, onEnd, formats) {
     if (stream) for (const t of stream.getTracks()) t.stop();
     video.remove(); btn.textContent = label; if (onEnd) onEnd();
   };
-  try {
-    const detector = new window.BarcodeDetector(formats ? { formats } : undefined);
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = stream; box.append(video); await video.play();
-    btn.textContent = '◼ stop';
-    const tick = async () => {
-      if (ended) return;
-      try { const codes = await detector.detect(video); if (codes.length) { onCode(codes[0].rawValue); stop(); return; } } catch {}
+  (async () => {
+    try {
+      const detector = new window.BarcodeDetector(formats ? { formats } : undefined);
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (ended) { for (const t of stream.getTracks()) t.stop(); return; }   // stopped while acquiring → release now
+      video.srcObject = stream; box.append(video); await video.play();
+      if (ended) return;                                                     // stopped during play()
+      btn.textContent = '◼ stop';
+      const tick = async () => {
+        if (ended) return;
+        try { const codes = await detector.detect(video); if (codes.length) { onCode(codes[0].rawValue); stop(); return; } } catch {}
+        raf = requestAnimationFrame(tick);
+      };
       raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-  } catch { stop(); }
+    } catch { stop(); }
+  })();
   return { stop };
 }
 
@@ -2860,7 +2868,16 @@ function renderForm(form, mount, onSave, saveBlob) {
   });
 
   mount.append(flagsBar, formEl, save, out);
-  return { values: () => form.values() };
+  // dispose() — stop any live camera scan still running in a barcode widget. The
+  // engine effects are GC'd with the discarded subtree (the shell builds a fresh
+  // form per open), but a getUserMedia stream is a live OS resource and must be
+  // released explicitly (SURFACES.md §12.5). Idempotent.
+  const dispose = () => {
+    for (const box of mount.querySelectorAll('.hf-barcode')) {
+      if (typeof box.__hopperStopScan === 'function') { try { box.__hopperStopScan(); } catch {} }
+    }
+  };
+  return { values: () => form.values(), dispose };
 }
 
 function renderNode(form, node, inst, saveBlob) {
@@ -3061,6 +3078,7 @@ function barcodeWidget(getV, setV) {
       if (session) { session.stop(); return; }
       session = await startBarcodeScan(box, scan, (code) => { text.value = code; setV(code); }, () => { session = null; });
     });
+    box.__hopperStopScan = () => { if (session) session.stop(); };   // teardown hook for renderForm.dispose()
     box.append(scan);
   }
   return box;
@@ -38790,7 +38808,7 @@ function groupIntoRepeat(tree, spec) {
 // Browser-only DOM; all the real logic lives in the pure, node-tested engine
 // (infer.js / edit.js / validate.js).
 //
-//   mountJig(root, { onEmit, initialTree })
+//   mountJig({ root, onEmit, initialTree, embedded }) → dispose
 //
 // Host-agnostic by design: the standalone jig.html exports via download / capsule
 // share; a host that passes `onEmit(tree)` (e.g. the collector mounting jig as a
@@ -38907,9 +38925,13 @@ function jigQrSvg(text) {
   svg.append(bg, path); return svg;
 }
 
-function mountJig(root, opts = {}) {
-  const onEmit = opts.onEmit || null;
-  let draft = opts.initialTree || null;        // the single source of truth
+// mountJig(ctx) → dispose — ctx = { root, onEmit?, initialTree?, embedded? }.
+// Stateless authoring surface: no store. dispose() removes any body overlays.
+function mountJig(ctx) {
+  const { root } = ctx;
+  const onEmit = ctx.onEmit || null;
+  let draft = ctx.initialTree || null;        // the single source of truth
+  const jigOverlays = new Set();               // body-attached scrims → removed on dispose
   let seams = [];
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
@@ -38999,7 +39021,7 @@ function mountJig(root, opts = {}) {
 
   // ── footer: validation + export ──
   const bar = jel('footer', 'jig-bar');
-  if (!opts.embedded) wrap.append(head);
+  if (!ctx.embedded) wrap.append(head);
   wrap.append(intake, modeBar, body, bar);
   root.append(wrap);
 
@@ -39284,7 +39306,7 @@ function mountJig(root, opts = {}) {
     const close = jel('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
     panel.append(close); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); jigOverlays.add(scrim);
   }
 
   function jigToast(msg) {
@@ -39295,7 +39317,65 @@ function mountJig(root, opts = {}) {
   function flatNames(tree) { const out = []; (function w(a){ for (const f of a) { out.push(f.name); if (f.children) w(f.children); } })(tree.fields || []); return out; }
 
   if (draft) rerender();
-  return { getTree: () => draft && structuredClone(draft), import: importRows };
+  // dispose() — remove any body-attached share overlay. jig holds no streams,
+  // grids, timers, or document listeners, so this is its whole teardown.
+  return () => { for (const s of jigOverlays) { try { s.remove(); } catch {} } jigOverlays.clear(); };
+}
+
+// ── src/js/surface/contract.js ──
+// The Hopper surface contract — `mount(ctx) → dispose` (DECISIONS §14).
+//
+// Every Hopper surface (Collect / Build / Analyze) is a pure function of an
+// injected context that returns a teardown:
+//
+//   mount(ctx) → disposeFn | Promise<disposeFn>
+//   ctx = { root, store?, onEmit?, initialTree?, embedded?, installer?, … }
+//
+// `root` is the mount element; `store` is the record store (absent for the
+// stateless jig); the rest are surface-specific. `dispose()` MUST release live
+// OS/network resources — camera/MediaStreams, WebRTC/Trystero connections, loom
+// grids, timers, and any document-level listeners — so a host can unmount a
+// surface without leaking into its realm.
+//
+// This deliberately mirrors the Works inline-mount contract (auditable
+// SURFACES.md §12.5, ctx = { root, bus, tab, vfs, home }): `store` stands in for
+// `vfs`, and bus/tab/home are absent standalone. Keeping this shape now makes
+// Works-citizenship a later thin A-Bus adapter rather than a rewrite — see
+// ../auditable/INTEROP.md and the §5.2 Surface ABI (@gcu/surface).
+
+// bootSurface — the standalone host adapter. Waits for the DOM, finds the mount
+// root (#app by default), calls mount({ root }), and holds the returned dispose
+// for teardown on page hide (so a reload never leaks a live camera). The `mount`
+// callback builds the rest of `ctx` (creating the store, decoding a hash, …) and
+// returns the surface's dispose. Mirrors @gcu/surface's `bootSurface` role for
+// the sandboxed path. Init errors render into the root rather than blanking it.
+//
+// Returns a `teardown()` the caller can invoke directly (HMR, tests).
+function bootSurface(mount, opts = {}) {
+  const rootId = opts.rootId || 'app';
+  const label = opts.label || 'surface';
+  let dispose = null;
+  let disposed = false;
+
+  const teardown = () => {
+    if (disposed) return;
+    disposed = true;
+    if (typeof dispose === 'function') { try { dispose(); } catch {} }
+    dispose = null;
+  };
+
+  const start = async () => {
+    const root = document.getElementById(rootId);
+    if (!root) return;
+    try { dispose = await mount({ root }); }
+    catch (e) { root.textContent = `${label} init error: ${(e && e.message) || e}`; }
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', teardown, { once: true });
+
+  return teardown;
 }
 
 // ── src/js/collector/shell.js ──
@@ -39509,11 +39589,24 @@ const SEED_FORM = {
 
 const ONBOARD_KEY = 'hopper-onboard-dismissed';
 
-async function mountShell(store, root, opts = {}) {
+// mountShell(ctx) → dispose — ctx = { root, store, installer? } (DECISIONS §14,
+// surface/contract.js). Returns a teardown that stops live camera scans and
+// closes any open peer sync (WebRTC / Trystero room).
+async function mountShell(ctx) {
+  const { root, store } = ctx;
   const id = store.identity();
   applyTheme(localStorage.getItem(THEME_KEY) || null);
   // install hook from boot (captures `beforeinstallprompt`); safe no-op default.
-  const installer = opts.installer || { available: () => false, prompt: async () => false };
+  const installer = ctx.installer || { available: () => false, prompt: async () => false };
+
+  // ---- teardown registries ----
+  // Per-screen cleanups (camera scans live inside the current screen's DOM); run
+  // on every re-render — the old screen is replaced — and on dispose. Live peer
+  // sync runs in a body overlay outside the screen, so it tears down separately.
+  const screenCleanups = [];
+  const onCleanup = (fn) => { screenCleanups.push(fn); };
+  function runScreenCleanups() { while (screenCleanups.length) { const fn = screenCleanups.pop(); try { fn(); } catch {} } }
+  const syncOverlays = new Set();        // open "Sync with a peer" dialogs → their close fns
 
   // ---- shell state ----
   let screen = 'forms';        // forms | fill | outbox | settings
@@ -39571,6 +39664,7 @@ async function mountShell(store, root, opts = {}) {
   }
 
   async function render() {
+    runScreenCleanups();             // release the outgoing screen's camera scans before replacing it
     setNavActive();
     let view;
     if (screen === 'fill') view = viewFill();
@@ -39608,13 +39702,14 @@ async function mountShell(store, root, opts = {}) {
 
   // ---- Build (jig) ----
   // The schema-from-example builder, embedded as a tab. jig is host-agnostic
-  // (mountJig(onEmit)); here onEmit routes the built tree into the record store
+  // (mountJig(ctx)); here ctx.onEmit routes the built tree into the record store
   // and jumps straight to Fill — build → collect with no file handoff. The same
   // surface also ships standalone as jig.html (surfaces-not-apps, DECISIONS §7).
   function viewBuild() {
     const v = ce('section', 'co-view');
     const host = ce('div', 'co-build');
-    mountJig(host, {
+    const jigDispose = mountJig({
+      root: host,
       embedded: true,
       onEmit: async (tree) => {
         const hash = await store.putForm(tree);
@@ -39623,6 +39718,7 @@ async function mountShell(store, root, opts = {}) {
         await go('fill');
       },
     });
+    onCleanup(jigDispose);            // jig cleans up its own body overlays on leave
     v.append(host);
     return v;
   }
@@ -39704,6 +39800,7 @@ async function mountShell(store, root, opts = {}) {
           async (val) => { try { await onResolveCapsule(val, 'a scanned QR'); } catch (e) { toast('Could not resolve QR: ' + e.message); } },
           () => { session = null; }, ['qr_code']);
       });
+      onCleanup(() => { if (session) session.stop(); });   // stop the camera if we navigate away mid-scan
       scanWrap.append(scanBtn);
     } else { scanWrap.classList.add('co-soon'); }
     sheet.append(scanWrap);
@@ -39765,7 +39862,7 @@ async function mountShell(store, root, opts = {}) {
     const form = createForm(current.tree);
     if (correcting) applyValues(form, correcting.values);     // pre-fill from the record being corrected
 
-    renderForm(form, host, async (values, attachments) => {
+    const filled = renderForm(form, host, async (values, attachments) => {
       if (correcting) {
         // append a correction superseding the original; carry forward its attachments, overlay any re-captured
         const rec = await store.saveRecord({ form: current.hash, values, attachments: { ...(correcting.attachments || {}), ...(attachments || {}) }, kind: 'correction', supersedes: correcting.id });
@@ -39779,6 +39876,7 @@ async function mountShell(store, root, opts = {}) {
       await render();                          // fresh form for the next record + the flash
       return rec;
     }, (bytes) => store.saveBlob(bytes));
+    onCleanup(filled.dispose);        // release the barcode-widget camera when leaving Fill
     return v;
   }
 
@@ -39792,8 +39890,17 @@ async function mountShell(store, root, opts = {}) {
     panel.append(ce('h3', 'co-confirm-h', 'Sync with a peer'));
     const body = ce('div', 'co-sync-body'); panel.append(body);
     let teardown = () => {};                                  // closes the live peer connection
+    let activeScan = null;                                    // the dialog's running camera scan, if any
+    const closeOverlay = () => {
+      if (activeScan) { try { activeScan.stop(); } catch {} activeScan = null; }
+      try { teardown(); } catch {}
+      scrim.remove();
+      syncOverlays.delete(entry);
+    };
+    const entry = { close: closeOverlay };
+    syncOverlays.add(entry);                                  // so shell dispose() can close a live sync
     const closeBtn = ce('button', 'co-btn co-ghost', 'Close');
-    closeBtn.addEventListener('click', () => { try { teardown(); } catch {} scrim.remove(); });
+    closeBtn.addEventListener('click', closeOverlay);
     const actions = ce('div', 'co-confirm-actions'); actions.append(closeBtn); panel.append(actions);
     scrim.append(panel); document.body.append(scrim);
 
@@ -39803,10 +39910,9 @@ async function mountShell(store, root, opts = {}) {
     const scanControl = (label, onCode) => {
       body.append(ce('div', 'co-sync-step', label));
       const sbox = ce('div'); const sbtn = ce('button', 'co-btn', '📷 Scan'); body.append(sbox, sbtn);
-      let session = null;
       sbtn.addEventListener('click', async () => {
-        if (session) { session.stop(); return; }
-        session = await startBarcodeScan(sbox, sbtn, onCode, () => { session = null; }, ['qr_code']);
+        if (activeScan) { activeScan.stop(); return; }
+        activeScan = await startBarcodeScan(sbox, sbtn, onCode, () => { activeScan = null; }, ['qr_code']);
       });
     };
     const afterConnect = async (conn) => {
@@ -40042,13 +40148,21 @@ async function mountShell(store, root, opts = {}) {
   if (!(await store.listForms()).length) await store.putForm(SEED_FORM);
   await render();
   await checkInboundCapsule();               // a shared link → offer to add its form
-  return { go };
+
+  // dispose() — release the screen's camera scans and close any open peer sync
+  // (WebRTC connection / Trystero room). Idempotent. The shell adds no top-level
+  // window/document listeners (its button listeners die with the root DOM).
+  return () => {
+    runScreenCleanups();
+    for (const o of [...syncOverlays]) { try { o.close(); } catch {} }
+  };
 }
 
 // ── src/js/boot.js ──
-// Boot — create the record store, mount the collector shell, register the SW.
-// The shell (Forms · Outbox · Settings around the renderer) owns the UI; this is
-// just the entry point. Store backend: IndexedDB in the browser.
+// Boot — capture the install prompt, register the SW, and mount the collector
+// shell through the surface contract (surface/contract.js: mount(ctx) → dispose).
+// Thin by design: the shell owns the UI. Store backend: IndexedDB in the browser.
+
 
 
 
@@ -40070,21 +40184,16 @@ const installer = {
   },
 };
 
-async function setup() {
-  const app = document.getElementById('app');
-  if (!app) return;
-  const store = createStore(new vfs.IDBBackend({ name: 'hopper' }));
-  await store.init({ name: 'collector' });
-  await store.persistRequest();                  // ask for persistent storage (the eviction lever)
-  await mountShell(store, app, { installer });
-}
-
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
-document.addEventListener('DOMContentLoaded', () => {
-  setup().catch((e) => { const a = document.getElementById('app'); if (a) a.textContent = 'init error: ' + e.message; });
-});
+
+bootSurface(async ({ root }) => {
+  const store = createStore(new vfs.IDBBackend({ name: 'hopper' }));
+  await store.init({ name: 'collector' });
+  await store.persistRequest();                  // ask for persistent storage (the eviction lever)
+  return mountShell({ root, store, installer });
+}, { label: 'collector' });
 </script>
 </body>
 </html>

@@ -21,5 +21,6 @@ import './formsource/yamlemit.js'; // → treeToYaml: §8 tree → YAML (the Sou
 import './jig/infer.js';         // → inferTree: a table → a flat §8 tree + seams (§10)
 import './jig/validate.js';      // → validateTree, IDENT_RE: the contract guardrail
 import './jig/edit.js';          // → pure tree→tree edits + applyOverrides
+import './surface/contract.js';  // → bootSurface: the mount(ctx) → dispose host adapter (DECISIONS §14)
 import './jig/ui.js';            // → mountJig: the builder shell (intake · seams · fields · preview · export)
 import './jig/boot.js';          // entry: mount jig into #app

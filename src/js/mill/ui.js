@@ -1,4 +1,5 @@
-// mountMill(store, root) — the analysis console (DECISIONS §6/§7). Host-agnostic:
+// mountMill(ctx) → dispose — ctx = { root, store, analysis? }. The analysis console
+// (DECISIONS §6/§7). Host-agnostic:
 // reads the **resolved union** (exportBundle + resolve — all streams, corrections/
 // tombstones applied), groups records by form, and drives a query builder whose
 // output is the shareable `query` data shape. Results render in a virtualized loom
@@ -63,7 +64,8 @@ async function resolveAnalysis(input) {
   return obj;
 }
 
-export async function mountMill(store, root, opts = {}) {
+export async function mountMill(ctx) {
+  const { root, store } = ctx;
   const forms = await store.listForms();
   const bundle = await store.exportBundle();
   const union = resolve(bundle.records || []);                 // all streams, resolved
@@ -103,6 +105,7 @@ export async function mountMill(store, root, opts = {}) {
   let query = {};
   let grid = null;             // current loom grid (destroy before recreate)
   let filterErr = null;
+  const millOverlays = new Set();   // body-attached scrims → removed on dispose
 
   formSel.addEventListener('change', () => selectForm(formSel.value));
 
@@ -249,7 +252,7 @@ export async function mountMill(store, root, opts = {}) {
     const close = mel('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
     panel.append(close); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); millOverlays.add(scrim);
   }
 
   function doOpen() {
@@ -268,13 +271,21 @@ export async function mountMill(store, root, opts = {}) {
     actions.append(cancel, apply);
     panel.append(ta, err, actions); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); millOverlays.add(scrim);
   }
 
   function millToast(msg) { const t = mel('div', 'co-toast', msg); document.body.append(t); setTimeout(() => t.remove(), 3500); }
 
-  if (opts.analysis) {
-    try { applyAnalysis(opts.analysis); }
+  if (ctx.analysis) {
+    try { applyAnalysis(ctx.analysis); }
     catch (e) { millToast(e.message); if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); } }
   } else if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); }
+
+  // dispose() — destroy the loom grid (canvas + observers) and remove any
+  // body-attached share/open overlays. Idempotent.
+  return () => {
+    if (grid && grid.destroy) { try { grid.destroy(); } catch {} grid = null; }
+    for (const s of millOverlays) { try { s.remove(); } catch {} }
+    millOverlays.clear();
+  };
 }

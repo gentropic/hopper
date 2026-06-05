@@ -251,6 +251,48 @@ try {
   await page.locator('.co-sync .co-qr').waitFor({ timeout: 8000 });
   await page.locator('.co-sync').getByRole('button', { name: 'Close' }).click();
 
+  // (d.5) the surface contract (DECISIONS §14): every surface is mount(ctx) → dispose,
+  // and dispose() MUST release live OS resources. Verify the contract shape across all
+  // surfaces, that jig mounts+disposes headlessly, and — the real win — that a form's
+  // dispose() actually ENDS a running camera scan (track + scan video). A canvas
+  // captureStream stands in for getUserMedia: a real MediaStream, no camera permission.
+  const teardown = await page.evaluate(async () => {
+    const shapes = ['bootSurface', 'mountShell', 'mountJig', 'renderForm'].map((n) => typeof window[n]);   // (mountMill is mill-only, not in this build)
+    const jigDispose = mountJig({ root: document.createElement('div') });   // stateless surface, no store
+    const jigDisposeType = typeof jigDispose; jigDispose();
+
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+    const realStream = canvas.captureStream(1);
+    const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async () => realStream;
+    const origBD = window.BarcodeDetector;
+    window.BarcodeDetector = class { async detect() { return []; } };       // never resolves a code → scan stays open
+
+    const host = document.createElement('div'); document.body.append(host);
+    const tree = { type: 'form', meta: { id: 'bc', title: 'BC' }, fields: [{ name: 'code', fieldType: 'barcode', label: 'Code', props: {} }], choices: {}, rules: [], views: [] };
+    const rendered = renderForm(createForm(tree), host, null, null);
+    const disposeType = typeof rendered.dispose;
+    host.querySelector('.hf-barcode .hf-capture').click();                  // start the scan
+    await new Promise((r) => setTimeout(r, 60));
+    const track = realStream.getVideoTracks()[0];
+    const liveBefore = track.readyState;                                    // 'live' once acquired
+    const videoBefore = host.querySelectorAll('video.hf-scan-video').length;
+    rendered.dispose();
+    await new Promise((r) => setTimeout(r, 10));
+
+    navigator.mediaDevices.getUserMedia = origGUM;
+    if (origBD) window.BarcodeDetector = origBD; else delete window.BarcodeDetector;
+    host.remove();
+    return { shapes, jigDisposeType, disposeType, liveBefore, videoBefore, endedAfter: track.readyState, videoAfter: host.querySelectorAll('video.hf-scan-video').length };
+  });
+  assert.deepEqual(teardown.shapes, ['function', 'function', 'function', 'function'], 'bootSurface + collector surfaces expose the contract');
+  assert.equal(teardown.jigDisposeType, 'function', 'mountJig returns a callable dispose');
+  assert.equal(teardown.disposeType, 'function', 'renderForm returns a dispose');
+  assert.equal(teardown.liveBefore, 'live', 'scan acquired a live camera track');
+  assert.equal(teardown.videoBefore, 1, 'scan opened a camera video element');
+  assert.equal(teardown.endedAfter, 'ended', 'dispose() ended the camera track — no leaked stream');
+  assert.equal(teardown.videoAfter, 0, 'dispose() removed the scan video');
+
   // (e) offline: the service worker serves the cached shell for a navigation to
   // the bare origin "/" (not just the exact precached URL) — the durability point
   // of a served PWA. Wait for the SW to control the page, cut the network, reload.
@@ -262,7 +304,7 @@ try {
   await page.context().setOffline(false);
 
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, Build-tab (jig), add yaml/xlsx, capsule in/out, archive import, correct/retract, WebRTC sync, offline shell');
+  console.log('✓ collector smoke passed — shell, capture→sign→IDB, durability, Build-tab (jig), add yaml/xlsx, capsule in/out, archive import, correct/retract, WebRTC sync, surface mount/dispose contract (camera release), offline shell');
   await shutdown();
 } catch (e) {
   console.error('✗ renderer smoke FAILED:', e.message);

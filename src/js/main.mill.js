@@ -22,5 +22,6 @@ import * as loom from '../../vendor/loom.js';   // virtualized canvas grid (name
 import * as plot from '../../vendor/plot.js';   // matplotlib-style charts (namespace-wrapped)
 import * as capsule from '../../vendor/capsule.js';   // @gcu/capsule — share an analysis (namespace-wrapped)
 import '../../vendor/qrcodegen.js';             // Nayuki QR gen → `qrcodegen` global (share QR)
+import './surface/contract.js';  // → bootSurface: the mount(ctx) → dispose host adapter (DECISIONS §14)
 import './mill/ui.js';           // → mountMill: the query builder + grid + chart
 import './mill/boot.js';         // entry: open an archive → store → mountMill

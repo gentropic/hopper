@@ -208,11 +208,24 @@ const SEED_FORM = {
 
 const ONBOARD_KEY = 'hopper-onboard-dismissed';
 
-export async function mountShell(store, root, opts = {}) {
+// mountShell(ctx) → dispose — ctx = { root, store, installer? } (DECISIONS §14,
+// surface/contract.js). Returns a teardown that stops live camera scans and
+// closes any open peer sync (WebRTC / Trystero room).
+export async function mountShell(ctx) {
+  const { root, store } = ctx;
   const id = store.identity();
   applyTheme(localStorage.getItem(THEME_KEY) || null);
   // install hook from boot (captures `beforeinstallprompt`); safe no-op default.
-  const installer = opts.installer || { available: () => false, prompt: async () => false };
+  const installer = ctx.installer || { available: () => false, prompt: async () => false };
+
+  // ---- teardown registries ----
+  // Per-screen cleanups (camera scans live inside the current screen's DOM); run
+  // on every re-render — the old screen is replaced — and on dispose. Live peer
+  // sync runs in a body overlay outside the screen, so it tears down separately.
+  const screenCleanups = [];
+  const onCleanup = (fn) => { screenCleanups.push(fn); };
+  function runScreenCleanups() { while (screenCleanups.length) { const fn = screenCleanups.pop(); try { fn(); } catch {} } }
+  const syncOverlays = new Set();        // open "Sync with a peer" dialogs → their close fns
 
   // ---- shell state ----
   let screen = 'forms';        // forms | fill | outbox | settings
@@ -270,6 +283,7 @@ export async function mountShell(store, root, opts = {}) {
   }
 
   async function render() {
+    runScreenCleanups();             // release the outgoing screen's camera scans before replacing it
     setNavActive();
     let view;
     if (screen === 'fill') view = viewFill();
@@ -307,13 +321,14 @@ export async function mountShell(store, root, opts = {}) {
 
   // ---- Build (jig) ----
   // The schema-from-example builder, embedded as a tab. jig is host-agnostic
-  // (mountJig(onEmit)); here onEmit routes the built tree into the record store
+  // (mountJig(ctx)); here ctx.onEmit routes the built tree into the record store
   // and jumps straight to Fill — build → collect with no file handoff. The same
   // surface also ships standalone as jig.html (surfaces-not-apps, DECISIONS §7).
   function viewBuild() {
     const v = ce('section', 'co-view');
     const host = ce('div', 'co-build');
-    mountJig(host, {
+    const jigDispose = mountJig({
+      root: host,
       embedded: true,
       onEmit: async (tree) => {
         const hash = await store.putForm(tree);
@@ -322,6 +337,7 @@ export async function mountShell(store, root, opts = {}) {
         await go('fill');
       },
     });
+    onCleanup(jigDispose);            // jig cleans up its own body overlays on leave
     v.append(host);
     return v;
   }
@@ -403,6 +419,7 @@ export async function mountShell(store, root, opts = {}) {
           async (val) => { try { await onResolveCapsule(val, 'a scanned QR'); } catch (e) { toast('Could not resolve QR: ' + e.message); } },
           () => { session = null; }, ['qr_code']);
       });
+      onCleanup(() => { if (session) session.stop(); });   // stop the camera if we navigate away mid-scan
       scanWrap.append(scanBtn);
     } else { scanWrap.classList.add('co-soon'); }
     sheet.append(scanWrap);
@@ -464,7 +481,7 @@ export async function mountShell(store, root, opts = {}) {
     const form = createForm(current.tree);
     if (correcting) applyValues(form, correcting.values);     // pre-fill from the record being corrected
 
-    renderForm(form, host, async (values, attachments) => {
+    const filled = renderForm(form, host, async (values, attachments) => {
       if (correcting) {
         // append a correction superseding the original; carry forward its attachments, overlay any re-captured
         const rec = await store.saveRecord({ form: current.hash, values, attachments: { ...(correcting.attachments || {}), ...(attachments || {}) }, kind: 'correction', supersedes: correcting.id });
@@ -478,6 +495,7 @@ export async function mountShell(store, root, opts = {}) {
       await render();                          // fresh form for the next record + the flash
       return rec;
     }, (bytes) => store.saveBlob(bytes));
+    onCleanup(filled.dispose);        // release the barcode-widget camera when leaving Fill
     return v;
   }
 
@@ -491,8 +509,17 @@ export async function mountShell(store, root, opts = {}) {
     panel.append(ce('h3', 'co-confirm-h', 'Sync with a peer'));
     const body = ce('div', 'co-sync-body'); panel.append(body);
     let teardown = () => {};                                  // closes the live peer connection
+    let activeScan = null;                                    // the dialog's running camera scan, if any
+    const closeOverlay = () => {
+      if (activeScan) { try { activeScan.stop(); } catch {} activeScan = null; }
+      try { teardown(); } catch {}
+      scrim.remove();
+      syncOverlays.delete(entry);
+    };
+    const entry = { close: closeOverlay };
+    syncOverlays.add(entry);                                  // so shell dispose() can close a live sync
     const closeBtn = ce('button', 'co-btn co-ghost', 'Close');
-    closeBtn.addEventListener('click', () => { try { teardown(); } catch {} scrim.remove(); });
+    closeBtn.addEventListener('click', closeOverlay);
     const actions = ce('div', 'co-confirm-actions'); actions.append(closeBtn); panel.append(actions);
     scrim.append(panel); document.body.append(scrim);
 
@@ -502,10 +529,9 @@ export async function mountShell(store, root, opts = {}) {
     const scanControl = (label, onCode) => {
       body.append(ce('div', 'co-sync-step', label));
       const sbox = ce('div'); const sbtn = ce('button', 'co-btn', '📷 Scan'); body.append(sbox, sbtn);
-      let session = null;
       sbtn.addEventListener('click', async () => {
-        if (session) { session.stop(); return; }
-        session = await startBarcodeScan(sbox, sbtn, onCode, () => { session = null; }, ['qr_code']);
+        if (activeScan) { activeScan.stop(); return; }
+        activeScan = await startBarcodeScan(sbox, sbtn, onCode, () => { activeScan = null; }, ['qr_code']);
       });
     };
     const afterConnect = async (conn) => {
@@ -741,5 +767,12 @@ export async function mountShell(store, root, opts = {}) {
   if (!(await store.listForms()).length) await store.putForm(SEED_FORM);
   await render();
   await checkInboundCapsule();               // a shared link → offer to add its form
-  return { go };
+
+  // dispose() — release the screen's camera scans and close any open peer sync
+  // (WebRTC connection / Trystero room). Idempotent. The shell adds no top-level
+  // window/document listeners (its button listeners die with the root DOM).
+  return () => {
+    runScreenCleanups();
+    for (const o of [...syncOverlays]) { try { o.close(); } catch {} }
+  };
 }

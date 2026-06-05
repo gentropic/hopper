@@ -1,13 +1,15 @@
 // mill entry — open a repo archive (the collector's "Export archive" bundle) into
-// an in-memory store, then mount the analysis console over its resolved union.
-// If the page is opened at a shared-analysis link (mill.html#<capsule>), the
-// analysis is decoded and applied once you open the archive it targets — analyses
-// travel like forms. Standalone surface: no IDB, no SW (ephemeral session).
+// an in-memory store, then mount the analysis console over its resolved union via
+// the surface contract (mount(ctx) → dispose). If the page is opened at a shared-
+// analysis link (mill.html#<capsule>), the analysis is decoded and applied once
+// you open the archive it targets — analyses travel like forms. Standalone
+// surface: no IDB, no SW (ephemeral session).
 
-import { createStore } from './storage/store.js';
-import { mountMill } from './mill/ui.js';
-import * as vfs from '../../vendor/vfs.js';
-import * as capsule from '../../vendor/capsule.js';
+import { createStore } from '../storage/store.js';
+import { mountMill } from './ui.js';
+import { bootSurface } from '../surface/contract.js';
+import * as vfs from '../../../vendor/vfs.js';
+import * as capsule from '../../../vendor/capsule.js';
 
 const ce = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
@@ -22,7 +24,9 @@ async function decodeHashAnalysis() {
   } catch { return null; }
 }
 
-function landing(app, pending) {
+// Render the open-archive landing. On a chosen file, mount the mill and report its
+// dispose back via onMount so the surface teardown can reach the live grid.
+function landing(app, pending, onMount) {
   app.replaceChildren();
   const wrap = ce('div', 'mill-landing');
   wrap.append(ce('h1', 'mill-brand', 'Hopper · mill'));
@@ -40,19 +44,19 @@ function landing(app, pending) {
       const store = createStore(new vfs.MemoryBackend());
       await store.init({ name: 'mill' });
       await store.importBundle(bundle);                 // unions + verifies signatures
-      await mountMill(store, app, { analysis: pending });
+      const dispose = await mountMill({ root: app, store, analysis: pending });
+      if (onMount) onMount(dispose);
     } catch (e) { err.textContent = 'Could not open: ' + e.message; }
   });
   wrap.append(label, err);
   app.append(wrap);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const app = document.getElementById('app');
-  if (!app) return;
+bootSurface(async ({ root }) => {
+  let millDispose = null;
   let pending = null;
   try { pending = await decodeHashAnalysis(); } catch {}
   if (pending) { try { history.replaceState(null, '', location.pathname + location.search); } catch {} }   // one-shot: clear the hash
-  try { landing(app, pending); }
-  catch (e) { app.textContent = 'mill init error: ' + e.message; }
-});
+  landing(root, pending, (d) => { millDispose = d; });
+  return () => { if (millDispose) { try { millDispose(); } catch {} millDispose = null; } };
+}, { label: 'mill' });

@@ -1162,10 +1162,14 @@ return { signal, computed, effect, batch, h, each, render };
 // (qr_code only). Browser-only; callers gate on BarcodeDetector availability.
 //
 // Open the camera, poll each frame, fire onCode on the first hit then tear down.
-// Returns a handle so the caller can stop a running scan; onEnd fires on any
-// termination (hit, manual stop, or failure) so the UI can reset. `formats` is an
-// optional BarcodeDetector format allow-list (e.g. ['qr_code']); omit for all.
-async function startBarcodeScan(box, btn, onCode, onEnd, formats) {
+// Returns the `{ stop }` handle **synchronously** so a caller can stop the scan the
+// instant it starts it — even before the camera finishes acquiring (a fast
+// navigate-away / surface dispose must not leak a live stream). The async camera
+// work runs in a detached task that re-checks `ended` after each await, so a stop
+// that lands mid-acquisition still releases the freshly-opened tracks. `onEnd`
+// fires on any termination (hit, manual stop, failure). `formats` is an optional
+// BarcodeDetector format allow-list (e.g. ['qr_code']); omit for all.
+function startBarcodeScan(box, btn, onCode, onEnd, formats) {
   let stream = null, raf = 0, ended = false;
   const label = btn.textContent;
   const video = document.createElement('video'); video.className = 'hf-scan-video';
@@ -1176,18 +1180,22 @@ async function startBarcodeScan(box, btn, onCode, onEnd, formats) {
     if (stream) for (const t of stream.getTracks()) t.stop();
     video.remove(); btn.textContent = label; if (onEnd) onEnd();
   };
-  try {
-    const detector = new window.BarcodeDetector(formats ? { formats } : undefined);
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = stream; box.append(video); await video.play();
-    btn.textContent = '◼ stop';
-    const tick = async () => {
-      if (ended) return;
-      try { const codes = await detector.detect(video); if (codes.length) { onCode(codes[0].rawValue); stop(); return; } } catch {}
+  (async () => {
+    try {
+      const detector = new window.BarcodeDetector(formats ? { formats } : undefined);
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (ended) { for (const t of stream.getTracks()) t.stop(); return; }   // stopped while acquiring → release now
+      video.srcObject = stream; box.append(video); await video.play();
+      if (ended) return;                                                     // stopped during play()
+      btn.textContent = '◼ stop';
+      const tick = async () => {
+        if (ended) return;
+        try { const codes = await detector.detect(video); if (codes.length) { onCode(codes[0].rawValue); stop(); return; } } catch {}
+        raf = requestAnimationFrame(tick);
+      };
       raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-  } catch { stop(); }
+    } catch { stop(); }
+  })();
   return { stop };
 }
 
@@ -1384,7 +1392,16 @@ function renderForm(form, mount, onSave, saveBlob) {
   });
 
   mount.append(flagsBar, formEl, save, out);
-  return { values: () => form.values() };
+  // dispose() — stop any live camera scan still running in a barcode widget. The
+  // engine effects are GC'd with the discarded subtree (the shell builds a fresh
+  // form per open), but a getUserMedia stream is a live OS resource and must be
+  // released explicitly (SURFACES.md §12.5). Idempotent.
+  const dispose = () => {
+    for (const box of mount.querySelectorAll('.hf-barcode')) {
+      if (typeof box.__hopperStopScan === 'function') { try { box.__hopperStopScan(); } catch {} }
+    }
+  };
+  return { values: () => form.values(), dispose };
 }
 
 function renderNode(form, node, inst, saveBlob) {
@@ -1585,6 +1602,7 @@ function barcodeWidget(getV, setV) {
       if (session) { session.stop(); return; }
       session = await startBarcodeScan(box, scan, (code) => { text.value = code; setV(code); }, () => { session = null; });
     });
+    box.__hopperStopScan = () => { if (session) session.stop(); };   // teardown hook for renderForm.dispose()
     box.append(scan);
   }
   return box;
@@ -30336,13 +30354,69 @@ function groupIntoRepeat(tree, spec) {
   return t;
 }
 
+// ── src/js/surface/contract.js ──
+// The Hopper surface contract — `mount(ctx) → dispose` (DECISIONS §14).
+//
+// Every Hopper surface (Collect / Build / Analyze) is a pure function of an
+// injected context that returns a teardown:
+//
+//   mount(ctx) → disposeFn | Promise<disposeFn>
+//   ctx = { root, store?, onEmit?, initialTree?, embedded?, installer?, … }
+//
+// `root` is the mount element; `store` is the record store (absent for the
+// stateless jig); the rest are surface-specific. `dispose()` MUST release live
+// OS/network resources — camera/MediaStreams, WebRTC/Trystero connections, loom
+// grids, timers, and any document-level listeners — so a host can unmount a
+// surface without leaking into its realm.
+//
+// This deliberately mirrors the Works inline-mount contract (auditable
+// SURFACES.md §12.5, ctx = { root, bus, tab, vfs, home }): `store` stands in for
+// `vfs`, and bus/tab/home are absent standalone. Keeping this shape now makes
+// Works-citizenship a later thin A-Bus adapter rather than a rewrite — see
+// ../auditable/INTEROP.md and the §5.2 Surface ABI (@gcu/surface).
+
+// bootSurface — the standalone host adapter. Waits for the DOM, finds the mount
+// root (#app by default), calls mount({ root }), and holds the returned dispose
+// for teardown on page hide (so a reload never leaks a live camera). The `mount`
+// callback builds the rest of `ctx` (creating the store, decoding a hash, …) and
+// returns the surface's dispose. Mirrors @gcu/surface's `bootSurface` role for
+// the sandboxed path. Init errors render into the root rather than blanking it.
+//
+// Returns a `teardown()` the caller can invoke directly (HMR, tests).
+function bootSurface(mount, opts = {}) {
+  const rootId = opts.rootId || 'app';
+  const label = opts.label || 'surface';
+  let dispose = null;
+  let disposed = false;
+
+  const teardown = () => {
+    if (disposed) return;
+    disposed = true;
+    if (typeof dispose === 'function') { try { dispose(); } catch {} }
+    dispose = null;
+  };
+
+  const start = async () => {
+    const root = document.getElementById(rootId);
+    if (!root) return;
+    try { dispose = await mount({ root }); }
+    catch (e) { root.textContent = `${label} init error: ${(e && e.message) || e}`; }
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', teardown, { once: true });
+
+  return teardown;
+}
+
 // ── src/js/jig/ui.js ──
 // mountJig — the jig builder shell (SPEC-hopper-form §10). Deliberately plain
 // (.co-* + a little .jig-* layout); structure first, Switchboard polish later.
 // Browser-only DOM; all the real logic lives in the pure, node-tested engine
 // (infer.js / edit.js / validate.js).
 //
-//   mountJig(root, { onEmit, initialTree })
+//   mountJig({ root, onEmit, initialTree, embedded }) → dispose
 //
 // Host-agnostic by design: the standalone jig.html exports via download / capsule
 // share; a host that passes `onEmit(tree)` (e.g. the collector mounting jig as a
@@ -30459,9 +30533,13 @@ function jigQrSvg(text) {
   svg.append(bg, path); return svg;
 }
 
-function mountJig(root, opts = {}) {
-  const onEmit = opts.onEmit || null;
-  let draft = opts.initialTree || null;        // the single source of truth
+// mountJig(ctx) → dispose — ctx = { root, onEmit?, initialTree?, embedded? }.
+// Stateless authoring surface: no store. dispose() removes any body overlays.
+function mountJig(ctx) {
+  const { root } = ctx;
+  const onEmit = ctx.onEmit || null;
+  let draft = ctx.initialTree || null;        // the single source of truth
+  const jigOverlays = new Set();               // body-attached scrims → removed on dispose
   let seams = [];
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
@@ -30551,7 +30629,7 @@ function mountJig(root, opts = {}) {
 
   // ── footer: validation + export ──
   const bar = jel('footer', 'jig-bar');
-  if (!opts.embedded) wrap.append(head);
+  if (!ctx.embedded) wrap.append(head);
   wrap.append(intake, modeBar, body, bar);
   root.append(wrap);
 
@@ -30836,7 +30914,7 @@ function mountJig(root, opts = {}) {
     const close = jel('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
     panel.append(close); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); jigOverlays.add(scrim);
   }
 
   function jigToast(msg) {
@@ -30847,24 +30925,23 @@ function mountJig(root, opts = {}) {
   function flatNames(tree) { const out = []; (function w(a){ for (const f of a) { out.push(f.name); if (f.children) w(f.children); } })(tree.fields || []); return out; }
 
   if (draft) rerender();
-  return { getTree: () => draft && structuredClone(draft), import: importRows };
+  // dispose() — remove any body-attached share overlay. jig holds no streams,
+  // grids, timers, or document listeners, so this is its whole teardown.
+  return () => { for (const s of jigOverlays) { try { s.remove(); } catch {} } jigOverlays.clear(); };
 }
 
 // ── src/js/jig/boot.js ──
-// jig entry — mount the builder into #app. Standalone surface: output leaves via
-// download / capsule-share (the collector's existing intake), so no record store
-// and no service worker here (the collector owns persistence + the SW; jig is a
-// stateless authoring surface). Dropped into the collector as a tab later, the
-// host would pass an `onEmit` to route the built tree into store.putForm instead.
+// jig entry — mount the builder via the surface contract (mount(ctx) → dispose).
+// Standalone surface: output leaves via download / capsule-share (the collector's
+// existing intake), so no record store and no service worker here (the collector
+// owns persistence + the SW; jig is a stateless authoring surface). Dropped into
+// the collector as a tab, the host passes ctx.onEmit to route the built tree into
+// store.putForm instead.
 
 
 
-document.addEventListener('DOMContentLoaded', () => {
-  const app = document.getElementById('app');
-  if (!app) return;
-  try { mountJig(app, {}); }
-  catch (e) { app.textContent = 'jig init error: ' + e.message; }
-});
+
+bootSurface(({ root }) => mountJig({ root }), { label: 'jig' });
 </script>
 </body>
 </html>

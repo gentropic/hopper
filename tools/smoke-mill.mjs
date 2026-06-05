@@ -98,8 +98,13 @@ try {
   await rowsIs(2);                                                 // the shared group/aggregate ran on open
   assert.equal(await page.locator('.mill-groupby').inputValue(), 'lithology', 'shared analysis restored the group-by');
 
+  // surface contract (DECISIONS §14): the mill build wires the bootSurface host
+  // adapter + the mount(ctx) export.
+  const millShapes = await page.evaluate(() => ['bootSurface', 'mountMill'].map((n) => typeof window[n]));
+  assert.deepEqual(millShapes, ['function', 'function'], 'mill exposes bootSurface + mountMill(ctx)');
+
   assert.deepEqual(errs, [], 'no page errors');
-  console.log('✓ mill smoke — open archive → query builder (filter/group/aggregate) → grid + chart → share analysis → reopen via link applies it');
+  console.log('✓ mill smoke — open archive → query builder (filter/group/aggregate) → grid + chart → share analysis → reopen via link applies it + surface contract');
   await browser.close(); await srv.close();
 } catch (e) {
   console.error('✗ mill smoke FAILED:', e.message);

@@ -149,8 +149,17 @@ try {
   await slSeam.locator('.jig-seg-done', { hasText: 'Sharing list' }).waitFor({ timeout: 2000 });
   await page.locator('.jig-shared', { hasText: '2' }).first().waitFor({ timeout: 2000 });
 
+  // surface contract (DECISIONS §14): jig is a stateless mount(ctx) → dispose. Mount
+  // a throwaway instance with no store and assert it returns a callable dispose.
+  const jigShape = await page.evaluate(() => {
+    const d = mountJig({ root: document.createElement('div') });
+    const t = typeof d; if (t === 'function') d();
+    return { boot: typeof bootSurface, mount: typeof mountJig, dispose: t };
+  });
+  assert.deepEqual(jigShape, { boot: 'function', mount: 'function', dispose: 'function' }, 'jig exposes bootSurface + mountJig(ctx) → dispose');
+
   assert.deepEqual(errors, [], 'no page errors');
-  console.log('✓ jig smoke passed — infer types + seams + wide repeats + shared lists, source view, live preview, JSON + XLSForm export round-trip');
+  console.log('✓ jig smoke passed — infer types + seams + wide repeats + shared lists, source view, live preview, JSON + XLSForm export round-trip + surface contract');
   await shutdown();
 } catch (e) {
   console.error('✗ jig smoke FAILED:', e.message);

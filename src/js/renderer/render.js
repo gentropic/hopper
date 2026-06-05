@@ -34,7 +34,16 @@ export function renderForm(form, mount, onSave, saveBlob) {
   });
 
   mount.append(flagsBar, formEl, save, out);
-  return { values: () => form.values() };
+  // dispose() — stop any live camera scan still running in a barcode widget. The
+  // engine effects are GC'd with the discarded subtree (the shell builds a fresh
+  // form per open), but a getUserMedia stream is a live OS resource and must be
+  // released explicitly (SURFACES.md §12.5). Idempotent.
+  const dispose = () => {
+    for (const box of mount.querySelectorAll('.hf-barcode')) {
+      if (typeof box.__hopperStopScan === 'function') { try { box.__hopperStopScan(); } catch {} }
+    }
+  };
+  return { values: () => form.values(), dispose };
 }
 
 function renderNode(form, node, inst, saveBlob) {
@@ -235,6 +244,7 @@ function barcodeWidget(getV, setV) {
       if (session) { session.stop(); return; }
       session = await startBarcodeScan(box, scan, (code) => { text.value = code; setV(code); }, () => { session = null; });
     });
+    box.__hopperStopScan = () => { if (session) session.stop(); };   // teardown hook for renderForm.dispose()
     box.append(scan);
   }
   return box;

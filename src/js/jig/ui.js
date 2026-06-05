@@ -3,7 +3,7 @@
 // Browser-only DOM; all the real logic lives in the pure, node-tested engine
 // (infer.js / edit.js / validate.js).
 //
-//   mountJig(root, { onEmit, initialTree })
+//   mountJig({ root, onEmit, initialTree, embedded }) → dispose
 //
 // Host-agnostic by design: the standalone jig.html exports via download / capsule
 // share; a host that passes `onEmit(tree)` (e.g. the collector mounting jig as a
@@ -120,9 +120,13 @@ function jigQrSvg(text) {
   svg.append(bg, path); return svg;
 }
 
-export function mountJig(root, opts = {}) {
-  const onEmit = opts.onEmit || null;
-  let draft = opts.initialTree || null;        // the single source of truth
+// mountJig(ctx) → dispose — ctx = { root, onEmit?, initialTree?, embedded? }.
+// Stateless authoring surface: no store. dispose() removes any body overlays.
+export function mountJig(ctx) {
+  const { root } = ctx;
+  const onEmit = ctx.onEmit || null;
+  let draft = ctx.initialTree || null;        // the single source of truth
+  const jigOverlays = new Set();               // body-attached scrims → removed on dispose
   let seams = [];
   let inferredChoices = {};                     // stash so a select↔text toggle is reversible
   let metaTitle = 'Form';
@@ -212,7 +216,7 @@ export function mountJig(root, opts = {}) {
 
   // ── footer: validation + export ──
   const bar = jel('footer', 'jig-bar');
-  if (!opts.embedded) wrap.append(head);
+  if (!ctx.embedded) wrap.append(head);
   wrap.append(intake, modeBar, body, bar);
   root.append(wrap);
 
@@ -497,7 +501,7 @@ export function mountJig(root, opts = {}) {
     const close = jel('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
     panel.append(close); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); jigOverlays.add(scrim);
   }
 
   function jigToast(msg) {
@@ -508,5 +512,7 @@ export function mountJig(root, opts = {}) {
   function flatNames(tree) { const out = []; (function w(a){ for (const f of a) { out.push(f.name); if (f.children) w(f.children); } })(tree.fields || []); return out; }
 
   if (draft) rerender();
-  return { getTree: () => draft && structuredClone(draft), import: importRows };
+  // dispose() — remove any body-attached share overlay. jig holds no streams,
+  // grids, timers, or document listeners, so this is its whole teardown.
+  return () => { for (const s of jigOverlays) { try { s.remove(); } catch {} } jigOverlays.clear(); };
 }

@@ -9431,8 +9431,65 @@ var qrcodegen;
     })(QrSegment = qrcodegen.QrSegment || (qrcodegen.QrSegment = {}));
 })(qrcodegen || (qrcodegen = {}));
 
+// ── src/js/surface/contract.js ──
+// The Hopper surface contract — `mount(ctx) → dispose` (DECISIONS §14).
+//
+// Every Hopper surface (Collect / Build / Analyze) is a pure function of an
+// injected context that returns a teardown:
+//
+//   mount(ctx) → disposeFn | Promise<disposeFn>
+//   ctx = { root, store?, onEmit?, initialTree?, embedded?, installer?, … }
+//
+// `root` is the mount element; `store` is the record store (absent for the
+// stateless jig); the rest are surface-specific. `dispose()` MUST release live
+// OS/network resources — camera/MediaStreams, WebRTC/Trystero connections, loom
+// grids, timers, and any document-level listeners — so a host can unmount a
+// surface without leaking into its realm.
+//
+// This deliberately mirrors the Works inline-mount contract (auditable
+// SURFACES.md §12.5, ctx = { root, bus, tab, vfs, home }): `store` stands in for
+// `vfs`, and bus/tab/home are absent standalone. Keeping this shape now makes
+// Works-citizenship a later thin A-Bus adapter rather than a rewrite — see
+// ../auditable/INTEROP.md and the §5.2 Surface ABI (@gcu/surface).
+
+// bootSurface — the standalone host adapter. Waits for the DOM, finds the mount
+// root (#app by default), calls mount({ root }), and holds the returned dispose
+// for teardown on page hide (so a reload never leaks a live camera). The `mount`
+// callback builds the rest of `ctx` (creating the store, decoding a hash, …) and
+// returns the surface's dispose. Mirrors @gcu/surface's `bootSurface` role for
+// the sandboxed path. Init errors render into the root rather than blanking it.
+//
+// Returns a `teardown()` the caller can invoke directly (HMR, tests).
+function bootSurface(mount, opts = {}) {
+  const rootId = opts.rootId || 'app';
+  const label = opts.label || 'surface';
+  let dispose = null;
+  let disposed = false;
+
+  const teardown = () => {
+    if (disposed) return;
+    disposed = true;
+    if (typeof dispose === 'function') { try { dispose(); } catch {} }
+    dispose = null;
+  };
+
+  const start = async () => {
+    const root = document.getElementById(rootId);
+    if (!root) return;
+    try { dispose = await mount({ root }); }
+    catch (e) { root.textContent = `${label} init error: ${(e && e.message) || e}`; }
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', teardown, { once: true });
+
+  return teardown;
+}
+
 // ── src/js/mill/ui.js ──
-// mountMill(store, root) — the analysis console (DECISIONS §6/§7). Host-agnostic:
+// mountMill(ctx) → dispose — ctx = { root, store, analysis? }. The analysis console
+// (DECISIONS §6/§7). Host-agnostic:
 // reads the **resolved union** (exportBundle + resolve — all streams, corrections/
 // tombstones applied), groups records by form, and drives a query builder whose
 // output is the shareable `query` data shape. Results render in a virtualized loom
@@ -9497,7 +9554,8 @@ async function resolveAnalysis(input) {
   return obj;
 }
 
-async function mountMill(store, root, opts = {}) {
+async function mountMill(ctx) {
+  const { root, store } = ctx;
   const forms = await store.listForms();
   const bundle = await store.exportBundle();
   const union = resolve(bundle.records || []);                 // all streams, resolved
@@ -9537,6 +9595,7 @@ async function mountMill(store, root, opts = {}) {
   let query = {};
   let grid = null;             // current loom grid (destroy before recreate)
   let filterErr = null;
+  const millOverlays = new Set();   // body-attached scrims → removed on dispose
 
   formSel.addEventListener('change', () => selectForm(formSel.value));
 
@@ -9683,7 +9742,7 @@ async function mountMill(store, root, opts = {}) {
     const close = mel('button', 'co-btn co-ghost', 'Close'); close.addEventListener('click', () => scrim.remove());
     panel.append(close); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); millOverlays.add(scrim);
   }
 
   function doOpen() {
@@ -9702,23 +9761,33 @@ async function mountMill(store, root, opts = {}) {
     actions.append(cancel, apply);
     panel.append(ta, err, actions); scrim.append(panel);
     scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.remove(); });
-    document.body.append(scrim);
+    document.body.append(scrim); millOverlays.add(scrim);
   }
 
   function millToast(msg) { const t = mel('div', 'co-toast', msg); document.body.append(t); setTimeout(() => t.remove(), 3500); }
 
-  if (opts.analysis) {
-    try { applyAnalysis(opts.analysis); }
+  if (ctx.analysis) {
+    try { applyAnalysis(ctx.analysis); }
     catch (e) { millToast(e.message); if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); } }
   } else if (withRecs.length) { formSel.value = withRecs[0].hash; selectForm(withRecs[0].hash); }
+
+  // dispose() — destroy the loom grid (canvas + observers) and remove any
+  // body-attached share/open overlays. Idempotent.
+  return () => {
+    if (grid && grid.destroy) { try { grid.destroy(); } catch {} grid = null; }
+    for (const s of millOverlays) { try { s.remove(); } catch {} }
+    millOverlays.clear();
+  };
 }
 
 // ── src/js/mill/boot.js ──
 // mill entry — open a repo archive (the collector's "Export archive" bundle) into
-// an in-memory store, then mount the analysis console over its resolved union.
-// If the page is opened at a shared-analysis link (mill.html#<capsule>), the
-// analysis is decoded and applied once you open the archive it targets — analyses
-// travel like forms. Standalone surface: no IDB, no SW (ephemeral session).
+// an in-memory store, then mount the analysis console over its resolved union via
+// the surface contract (mount(ctx) → dispose). If the page is opened at a shared-
+// analysis link (mill.html#<capsule>), the analysis is decoded and applied once
+// you open the archive it targets — analyses travel like forms. Standalone
+// surface: no IDB, no SW (ephemeral session).
+
 
 
 
@@ -9738,7 +9807,9 @@ async function decodeHashAnalysis() {
   } catch { return null; }
 }
 
-function landing(app, pending) {
+// Render the open-archive landing. On a chosen file, mount the mill and report its
+// dispose back via onMount so the surface teardown can reach the live grid.
+function landing(app, pending, onMount) {
   app.replaceChildren();
   const wrap = ce('div', 'mill-landing');
   wrap.append(ce('h1', 'mill-brand', 'Hopper · mill'));
@@ -9756,22 +9827,22 @@ function landing(app, pending) {
       const store = createStore(new vfs.MemoryBackend());
       await store.init({ name: 'mill' });
       await store.importBundle(bundle);                 // unions + verifies signatures
-      await mountMill(store, app, { analysis: pending });
+      const dispose = await mountMill({ root: app, store, analysis: pending });
+      if (onMount) onMount(dispose);
     } catch (e) { err.textContent = 'Could not open: ' + e.message; }
   });
   wrap.append(label, err);
   app.append(wrap);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const app = document.getElementById('app');
-  if (!app) return;
+bootSurface(async ({ root }) => {
+  let millDispose = null;
   let pending = null;
   try { pending = await decodeHashAnalysis(); } catch {}
   if (pending) { try { history.replaceState(null, '', location.pathname + location.search); } catch {} }   // one-shot: clear the hash
-  try { landing(app, pending); }
-  catch (e) { app.textContent = 'mill init error: ' + e.message; }
-});
+  landing(root, pending, (d) => { millDispose = d; });
+  return () => { if (millDispose) { try { millDispose(); } catch {} millDispose = null; } };
+}, { label: 'mill' });
 </script>
 </body>
 </html>
