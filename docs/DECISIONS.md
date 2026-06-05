@@ -600,14 +600,20 @@ right *shape*; Phase 1 = vendor the real tokens + remap hardcoded hexes + pre-pa
 Phase 2 = panel/component classes. (Reference dialect for the field app: **RelayKVM** —
 light, panel-grid, accent-coded, responsive.)
 
-**Works-citizenship comes free by convergence.** The Works **inline-surface contract**
-(`auditable/works/SURFACES.md` §12.5) is `mount(ctx) → dispose`, `ctx = { root, bus, tab,
-vfs, home }` — *the same shape* as Hopper's own in-process surface model. So we don't
-choose between "Hopper's way" and "Works' way"; for the privileged-inline tier they are
-the same contract. The disciplines that make it free are ones we want anyway: (1) surfaces
-as `mount(ctx) → dispose`; (2) **storage behind the VFS seam** (`@gcu/vfs`) — own
-`IDBBackend` standalone, the workspace VFS (`AbusBackend`) in Works (the `@gcu/dock`
-adaptive-host idea); (3) `title`/`dirty`/`flush` hooks that map to the Surface signals.
+**Works-citizenship comes free by convergence.** (Front door: `../auditable/INTEROP.md`
+— the canonical reading order; the contract-as-code is **`@gcu/surface`**, `ext/surface/SPEC.md`.)
+The Works **inline mount contract** (`auditable/works/SURFACES.md` §12.5) is
+`mount(ctx) → dispose`, `ctx = { root, bus, tab, vfs, home }` (where `root` is now an open
+**ShadowRoot** — CSS-isolated — and `tab = { id, path, kind }`) — *the same shape* as
+Hopper's own in-process surface model. So we don't choose between "Hopper's way" and
+"Works' way"; for the privileged-inline tier they are the same contract. The disciplines
+that make it free are ones we want anyway: (1) surfaces as `mount(ctx) → dispose`; (2)
+**storage behind the VFS seam** (`@gcu/vfs`) — own `IDBBackend` standalone, the workspace
+VFS (`AbusBackend`) in Works (the `@gcu/dock` adaptive-host idea); (3) hooks that map to
+the **§5.2 Surface ABI** — methods `Flush` / `CanClose` / `Relocated`, signals
+`DirtyChanged` / `TitleChanged` / `Ready` (`bootSurface` exposes them from the host in the
+sandboxed path; `createWorksHost` is the host adapter). Our `title`/`dirty`/`flush` already
+cover the common case; `CanClose`/`Relocated` are cheap to add at adapter time.
 
 **What we do NOT do (and why):**
 - **No iframe + A-Bus *inside* Hopper.** Adopt Works' *organization* (rail/tabs/panels),
@@ -621,6 +627,23 @@ adaptive-host idea); (3) `title`/`dirty`/`flush` hooks that map to the Surface s
   jig/mill could be sandboxed iframe surfaces today; Collect waits for inline. So full
   bundling-into-Works is deferred — but a **thin boot-time A-Bus adapter** away once the
   tier ships, *because* we kept the seams (1)–(3) clean.
+
+**Brushing across surfaces is a free convergence too (mill seam).** Works surfaces link by
+broadcasting a **semantic `Selection` descriptor** on a shared A-Bus channel — rows named
+by *key values* (never positions), and the rule-based variant (`kind:"filter"`) carries a
+**`@gcu/sift` predicate that is walked, never `eval`'d** (`ext/surface/SPEC.md` "selection /
+linking contract"). That is *our* instinct already — predicates are data, not JS strings
+(the total calculus, §6). So the mill's filter is a natural emitter: lower a Hopper filter
+to a `@gcu/sift` spec and the mill brushes any Works surface bound to the same archive (and
+consumes theirs). Not built; recorded as the seam so the mill's query layer stays
+predicate-as-data and gains cross-surface linking for ~free later. `createWorksHost` already
+implements the `dataset`/`origin`/`epoch`/echo-suppress plumbing.
+
+**Phase-2 shell can lean on Switchboard components, not hand-rolling.** Beyond the token
+language, Switchboard now ships drop-in DOM widgets as packages — **`@gcu/rails`** (the
+docking rail/tabs layout = the studio shell), `@gcu/menu`, `@gcu/dialog`, `@gcu/loom`
+(already used by the mill), `@gcu/term`. The Phase-2 "panel/component classes" step should
+prefer these over bespoke rail/tab code.
 
 **Net:** build the studio with the in-process `mount(ctx) → dispose` surface contract +
 vfs seam now (right for us regardless); Works-citizenship is then additive, not a rewrite.
